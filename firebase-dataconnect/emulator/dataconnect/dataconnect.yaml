@@ -13,4 +13,5 @@ connectorDirs: [
   "./connector/keywords",
   "./connector/person",
   "./connector/posts",
+  "./connector/movies",
 ]

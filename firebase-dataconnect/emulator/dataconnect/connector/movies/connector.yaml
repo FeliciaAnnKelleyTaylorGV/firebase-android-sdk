@@ -1,0 +1,6 @@
+connectorId: movies
+authMode: PUBLIC
+generate:
+  kotlinSdk:
+    outputDir: ../../../../connectors/src/test/kotlin/movies/connector
+    package: movies.connector

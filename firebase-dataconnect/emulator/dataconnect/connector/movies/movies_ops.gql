@@ -1,0 +1,58 @@
+query MovieById($id: UUID!) {
+  movie(id: $id) {
+    title
+    releaseYear
+    genre
+    rating
+    sequelTo {
+      id
+    }
+  }
+}
+
+query MovieByKey($key: Movie_Key!) {
+  movie(key: $key) {
+    title
+    releaseYear
+    genre
+    rating
+    sequelTo {
+      id
+    }
+  }
+}
+
+query MovieByTitle($title: String!) {
+  movies(where: {title: {eq: $title}}) {
+    id
+    title
+    releaseYear
+    genre
+    rating
+    sequelTo {
+      id
+    }
+  }
+}
+
+query MovieTopRating($genre: String) {
+  mostPopular: movies(where: {genre: {eq: $genre}}, orderBy: {rating: DESC}, limit: 1) {
+    id
+    title
+  }
+}
+
+
+query MoviesTop10 {
+  movies(orderBy: [{rating: DESC}], limit: 10) {
+    id
+    title
+  }
+}
+
+query MoviesByReleaseYear($min: Int, $max: Int) {
+  movies(where: {releaseYear: {le: $max, ge: $min}}, orderBy: [{releaseYear: ASC}]) {
+    id
+    title
+  }
+}

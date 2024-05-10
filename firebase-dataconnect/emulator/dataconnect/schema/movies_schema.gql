@@ -1,0 +1,48 @@
+type Movie @table(name: "Movies", singular: "movie", plural: "movies", key: ["id"]) {
+  id: UUID! @col(name: "movie_id") @default(expr: "uuidV4()")
+  title: String!
+  releaseYear: Int @col(name: "release_year")
+  genre: String
+  rating: Int @col(name: "rating") 
+}
+
+type MovieMetadata @table( name: "MovieMetadata" ) {
+  movie: Movie!
+  director: String @col(name: "director")
+}
+
+type Actor @table(name: "Actors", singular: "actor", plural: "actors") {
+  id: UUID! @col(name: "actor_id") @default(expr: "uuidV4()")
+  name: String! @col(name: "name", dataType: "varchar(30)")
+}
+
+type MovieActor @table(key: ["movie", "actor"]) {
+  movie: Movie!
+  actor: Actor!
+  role: String! @col(name: "role") # "main" or "supporting"
+}
+
+type User @table(name: "Users", singular: "user", plural: "users", key: ["id"]) {
+  id: UUID! @col(name: "user_id") @default(expr: "uuidV4()")
+  auth: String @col(name: "user_auth") @default(expr: "auth.uid")
+  username: String! @col(name: "username", dataType: "varchar(30)")
+}
+
+type Review @table(name: "Reviews", key: ["movie", "user"]) {
+  id: UUID! @col(name: "review_id") @default(expr: "uuidV4()")
+  user: User!
+  movie: Movie!
+  rating: Int
+  reviewText: String
+  reviewDate: Date! @default(expr: "request.time")
+}
+
+extend type Movie {
+    sequelTo: Movie
+}
+
+enum Rating {
+  G
+  PG
+  R
+}
