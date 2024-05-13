@@ -4,17 +4,9 @@ type Movie @table(name: "Movies", singular: "movie", plural: "movies", key: ["id
   releaseYear: Int @col(name: "release_year")
   genre: String
   rating: Int @col(name: "rating") 
-}
-
-type MovieMetadata @table( name: "MovieMetadata" ) {
-  movie: Movie!
   director: String @col(name: "director")
 }
 
-type Actor @table(name: "Actors", singular: "actor", plural: "actors") {
-  id: UUID! @col(name: "actor_id") @default(expr: "uuidV4()")
-  name: String! @col(name: "name", dataType: "varchar(30)")
-}
 
 type MovieActor @table(key: ["movie", "actor"]) {
   movie: Movie!

@@ -1,3 +1,21 @@
+query getMovieByKey($key: Movie_Key!) {
+  movie(key: $key) { id title }
+}
+
+query listMovies($director: String!) {
+  movies(where: {director: {eq: $director}}) {
+    id
+    title
+  }
+}
+
+mutation addMovie($title: String!, $director: String) {
+  movie_insert(data: {
+    title: $title,
+    director: $director
+  })
+}
+
 query MovieById($id: UUID!) {
   movie(id: $id) {
     title
