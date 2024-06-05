@@ -31,6 +31,8 @@ import com.google.firebase.firestore.util.Logger;
 import com.google.firebase.inject.Deferred;
 import com.google.firebase.inject.Provider;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * FirebaseAuthCredentialsProvider uses Firebase Auth via {@link FirebaseApp} to get an auth token.
  *
@@ -42,6 +44,9 @@ import com.google.firebase.inject.Provider;
  * callbacks and user change notifications will be executed on arbitrary different threads.
  */
 public final class FirebaseAuthCredentialsProvider extends CredentialsProvider<User> {
+
+  private static final AtomicReference<String> initialToken = new AtomicReference<>("eyJhbGciOiJSUzI1NiIsImtpZCI6IjMzMDUxMThiZTBmNTZkYzA4NGE0NmExN2RiNzU1NjVkNzY4YmE2ZmUiLCJ0eXAiOiJKV1QifQ.eyJwcm92aWRlcl9pZCI6ImFub255bW91cyIsImlzcyI6Imh0dHBzOi8vc2VjdXJldG9rZW4uZ29vZ2xlLmNvbS9kY29uZXliZS10ZXN0aW5nIiwiYXVkIjoiZGNvbmV5YmUtdGVzdGluZyIsImF1dGhfdGltZSI6MTcxNzU1MTAzMCwidXNlcl9pZCI6InI1TWg2Z2dPSG9PZ1gyeFlxN1pUbG43TkR4RDMiLCJzdWIiOiJyNU1oNmdnT0hvT2dYMnhZcTdaVGxuN05EeEQzIiwiaWF0IjoxNzE3NTUxMDMwLCJleHAiOjE3MTc1NTQ2MzAsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnt9LCJzaWduX2luX3Byb3ZpZGVyIjoiYW5vbnltb3VzIn19.FTobg4iqZucA3RLoU6HCO97MYvExwxyIk5znPjh1WElT0Y1Aff-C4oUTfC3kxY0qusY5Ohlf7BMRXTPSCGC2EvTlvwnXEH2DxPSPMBInSZH7JHZ6bYRrd1XZyjK86mlXmOffW8KQCGJKYPu2aks5AmrFxnwXe45AsT1MBoQ0_APRQNaR9cgKqkzkhcayjMBFDWwD3J8AaTj1aAc_5AUs2CIbu5KV7aFrpWOPqdo-kmR6peqgiSqik1dMLk_7Wnf0yls3s-vT7p3USDCYjSfq_EaHxotgoxLQF8jrLmRzBWXhw5Tl5Gjamxj8zJDgnJWCCjGsvpGaBGpDZcIyZqFqkw");
+
 
   private static final String LOG_TAG = "FirebaseAuthCredentialsProvider";
 
@@ -89,6 +94,17 @@ public final class FirebaseAuthCredentialsProvider extends CredentialsProvider<U
   public synchronized Task<String> getToken() {
     if (internalAuthProvider == null) {
       return Tasks.forException(new FirebaseApiNotAvailableException("auth is not available"));
+    }
+
+    if (forceRefresh && initialToken.get() != null) {
+      Logger.debug(LOG_TAG, "zzyzx getToken() initialToken.set(null)");
+      initialToken.set(null);
+    } else {
+      String token = initialToken.get();
+      if (token != null) {
+        Logger.debug(LOG_TAG, "zzyzx getToken() force returning initialToken.get(): " + token);
+        return Tasks.forResult(token);
+      }
     }
 
     Task<GetTokenResult> res = internalAuthProvider.getAccessToken(forceRefresh);
