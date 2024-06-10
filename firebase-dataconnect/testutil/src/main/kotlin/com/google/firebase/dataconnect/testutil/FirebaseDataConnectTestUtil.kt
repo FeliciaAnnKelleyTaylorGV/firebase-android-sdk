@@ -23,9 +23,9 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.internal.InternalAuthProvider
 import com.google.firebase.inject.Deferred
 import com.google.firebase.util.nextAlphanumericString
+import io.mockk.every
+import io.mockk.mockk
 import kotlin.random.Random
-import org.mockito.Mockito
-import org.mockito.stubbing.Answer
 import org.robolectric.RuntimeEnvironment
 
 @SuppressLint("FirebaseUseExplicitDependencies")
@@ -33,32 +33,33 @@ fun newMockFirebaseApp(
   applicationId: String = Random.nextAlphanumericString(length = 10),
   projectId: String = Random.nextAlphanumericString(length = 10)
 ): FirebaseApp {
-  val firebaseApp = Mockito.mock(FirebaseApp::class.java)
-
   val firebaseOptions =
     FirebaseOptions.Builder().setApplicationId(applicationId).setProjectId(projectId).build()
-  Mockito.`when`(firebaseApp.options).thenReturn(firebaseOptions)
+
+  val firebaseApp = mockk<FirebaseApp>()
+  every { firebaseApp.options } returns firebaseOptions
 
   abstract class DeferredAuthProvider : Deferred<InternalAuthProvider>
-  val deferredAuthProvider = Mockito.mock(DeferredAuthProvider::class.java)
+  val deferredAuthProvider = mockk<DeferredAuthProvider>()
 
   val firebaseDataConnectFactoryClass =
     Class.forName("com.google.firebase.dataconnect.core.FirebaseDataConnectFactory")
-  val firebaseAppGetAnswer = Answer { invocation ->
-    if (invocation.arguments.singleOrNull() !== firebaseDataConnectFactoryClass) {
-      throw UnsupportedOperationException("arguments not supported: ${invocation.arguments}")
+
+  every { firebaseApp.get(firebaseDataConnectFactoryClass) } answers
+    {
+      if (it.invocation.args.singleOrNull() !== firebaseDataConnectFactoryClass) {
+        throw UnsupportedOperationException("arguments not supported: ${invocation.args}")
+      }
+      firebaseDataConnectFactoryClass.constructors
+        .single()
+        .newInstance(
+          RuntimeEnvironment.getApplication(),
+          firebaseApp,
+          MoreExecutors.directExecutor(),
+          MoreExecutors.directExecutor(),
+          deferredAuthProvider
+        )
     }
-    firebaseDataConnectFactoryClass.constructors
-      .single()
-      .newInstance(
-        RuntimeEnvironment.getApplication(),
-        firebaseApp,
-        MoreExecutors.directExecutor(),
-        MoreExecutors.directExecutor(),
-        deferredAuthProvider
-      )
-  }
-  Mockito.`when`(firebaseApp.get(firebaseDataConnectFactoryClass)).thenAnswer(firebaseAppGetAnswer)
 
   return firebaseApp
 }
