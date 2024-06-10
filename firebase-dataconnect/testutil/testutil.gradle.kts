@@ -54,7 +54,7 @@ dependencies {
     exclude(group = "com.google.firebase", module = "firebase-components")
   }
 
-  implementation(libs.mockito.core)
+  implementation(libs.mockk)
   implementation(libs.robolectric)
   implementation(libs.truth)
 }
