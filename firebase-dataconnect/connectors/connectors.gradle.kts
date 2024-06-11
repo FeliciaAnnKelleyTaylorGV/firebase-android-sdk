@@ -66,7 +66,6 @@ dependencies {
   androidTestImplementation(libs.androidx.test.rules)
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.kotlin.coroutines.test)
-  androidTestImplementation(libs.mockk)
   androidTestImplementation(libs.truth)
   androidTestImplementation(libs.truth.liteproto.extension)
   androidTestImplementation(libs.turbine)
