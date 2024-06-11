@@ -17,8 +17,11 @@
 package com.google.firebase.dataconnect.testutil
 
 import com.google.common.truth.StringSubject
+import com.google.firebase.FirebaseApp
+import com.google.firebase.util.nextAlphanumericString
 import java.util.UUID
 import java.util.regex.Pattern
+import kotlin.random.Random
 import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
 import kotlin.time.Duration
@@ -100,3 +103,18 @@ inline fun <T, R, E : Any> T.assertThrows(expectedException: KClass<E>, block: T
  * Taken from `Number.MAX_SAFE_INTEGER` in JavaScript.
  */
 const val MAX_SAFE_INTEGER = 9007199254740991.0
+
+/**
+ * Generates and returns a random, valid string suitable to be the "applicationId" of a
+ * [FirebaseApp].
+ * @param key A hardcoded random string that will be incorporated into the returned string; useful
+ * for correlating the application ID with its call site (e.g. "axqm2rajxv").
+ */
+fun randomApplicationId(key: String) = "appId-$key-${Random.nextAlphanumericString(length = 8)}"
+
+/**
+ * Generates and returns a random, valid string suitable to be the "projectId" of a [FirebaseApp].
+ * @param key A hardcoded random string that will be incorporated into the returned string; useful
+ * for correlating the application ID with its call site (e.g. "ncdd6n863r").
+ */
+fun randomProjectId(key: String) = "projId-$key-${Random.nextAlphanumericString(length = 8)}"

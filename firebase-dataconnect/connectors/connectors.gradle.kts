@@ -52,6 +52,7 @@ dependencies {
   api(libs.kotlinx.serialization.core)
 
   testImplementation(project(":firebase-dataconnect:testutil"))
+  testImplementation(libs.androidx.test.junit.ktx)
   testImplementation(libs.kotlin.coroutines.test)
   testImplementation(libs.mockk)
   testImplementation(libs.robolectric)

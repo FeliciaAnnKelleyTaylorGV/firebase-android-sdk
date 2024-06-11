@@ -14,20 +14,23 @@
  * limitations under the License.
  */
 
-package com.google.firebase.dataconnect
+package com.google.firebase.dataconnect.connectors
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
-import com.google.firebase.dataconnect.connectors.PostsConnector
-import com.google.firebase.dataconnect.testutil.newMockFirebaseApp
-import kotlinx.coroutines.test.*
+import com.google.firebase.dataconnect.testutil.MockFirebaseAppFactory
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 
-@RunWith(RobolectricTestRunner::class)
+@RunWith(AndroidJUnit4::class)
 class PostsConnectorUnitTest {
 
-  val posts by lazy { PostsConnector.getInstance(newMockFirebaseApp()) }
+  @get:Rule
+  val mockFirebaseAppFactory =
+    MockFirebaseAppFactory(applicationIdKey = "y4amsax6dy", projectIdKey = "y64sjfnnhq")
+
+  private val posts by lazy { PostsConnector.getInstance(mockFirebaseAppFactory.newInstance()) }
 
   @Test
   fun `getPost property should always return the same instance`() {
