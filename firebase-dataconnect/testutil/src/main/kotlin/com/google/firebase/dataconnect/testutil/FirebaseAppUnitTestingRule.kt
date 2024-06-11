@@ -24,6 +24,27 @@ import com.google.firebase.FirebaseAppTestUtils
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.initialize
 
+/**
+ * A JUnit rule for use in _unit_ tests (not _integration_ tests) that sets up the default
+ * [FirebaseApp] instance before the test, and deletes is _after_ the test. It can also be used to
+ * create non-default instances of [FirebaseApp] by calling [newInstance].
+ *
+ * Unit tests using this rule must be in classes annotated with `@RunWith(AndroidJUnit4::class)`.
+ *
+ * The [appNameKey], [applicationIdKey], and [projectIdKey] should all be globally unique strings
+ * and will be incorporated into [FirebaseApp] instances that this object creates. Using such values
+ * enables easily correlating instances back to the place in the source code where they are created.
+ *
+ * Example:
+ * ```
+ * @get:Rule
+ * val firebaseAppFactory = FirebaseAppUnitTestingRule(
+ *   appNameKey = "bsv6ag4m76",
+ *   applicationIdKey = "52jdwgz9s9",
+ *   projectIdKey = "pf9yk3m5jw"
+ * )
+ * ```
+ */
 class FirebaseAppUnitTestingRule(
   private val appNameKey: String,
   private val applicationIdKey: String,
