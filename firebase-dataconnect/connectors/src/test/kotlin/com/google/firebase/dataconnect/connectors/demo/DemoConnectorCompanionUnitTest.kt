@@ -318,7 +318,7 @@ class DemoConnectorCompanionUnitTest {
 
   @Test
   fun getInstance_FirebaseDataConnect_CanBeAccessedConcurrently() {
-    val dataConnect = mockk<FirebaseDataConnect>()
+    val dataConnect = FirebaseDataConnect.getInstance(DemoConnector.config)
     getInstanceConcurrentTest { DemoConnector.getInstance(dataConnect) }
   }
 

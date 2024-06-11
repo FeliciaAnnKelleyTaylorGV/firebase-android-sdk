@@ -33,8 +33,6 @@ class FirebaseAppUnitTestingRule(
   private val context: Context
     get() = ApplicationProvider.getApplicationContext()
 
-  fun initializeDefaultApp(): FirebaseApp = createInstance(FirebaseApp.DEFAULT_APP_NAME)
-
   override fun createInstance(params: Nothing?) = createInstance(randomAppName(appNameKey))
 
   private fun createInstance(appName: String): FirebaseApp {
@@ -44,6 +42,8 @@ class FirebaseAppUnitTestingRule(
     return app
   }
 
+  private fun initializeDefaultApp(): FirebaseApp = createInstance(FirebaseApp.DEFAULT_APP_NAME)
+
   override fun destroyInstance(instance: FirebaseApp) {
     instance.delete()
   }
@@ -51,6 +51,7 @@ class FirebaseAppUnitTestingRule(
   override fun before() {
     super.before()
     FirebaseAppTestUtils.clearInstancesForTest()
+    initializeDefaultApp()
   }
 
   override fun after() {
