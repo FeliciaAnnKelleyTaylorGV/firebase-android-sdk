@@ -20,6 +20,7 @@ serialization = "1.5.0"
 androidx-test-core="1.5.0"
 androidx-test-junit="1.1.5"
 androidx-test-truth = "1.5.0"
+junitKtx = "1.1.5"
 
 [libraries]
 android-lint = { module = "com.android.tools.lint:lint", version.ref = "android-lint" }
@@ -80,6 +81,7 @@ kotest-assertions = { module = "io.kotest:kotest-assertions-core-jvm", version.r
 kotest-property = { module = "io.kotest:kotest-property-jvm", version.ref = "kotest" }
 quickcheck = { module = "net.java:quickcheck", version.ref = "quickcheck" }
 turbine = { module = "app.cash.turbine:turbine", version = "1.0.0" }
+androidx-junit-ktx = { group = "androidx.test.ext", name = "junit-ktx", version.ref = "junitKtx" }
 
 [bundles]
 kotest = ["kotest-runner", "kotest-assertions", "kotest-property"]
