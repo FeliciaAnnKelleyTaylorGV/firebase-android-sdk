@@ -16,16 +16,13 @@
 
 package com.google.firebase.dataconnect.testutil
 
-import android.content.ComponentName
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseAppTestUtils
 import com.google.firebase.FirebaseOptions
-import com.google.firebase.components.ComponentDiscoveryService
 import com.google.firebase.initialize
-import org.robolectric.Shadows.shadowOf
 
 class FirebaseAppUnitTestingRule(
   private val appNameKey: String,
@@ -53,14 +50,6 @@ class FirebaseAppUnitTestingRule(
 
   override fun before() {
     super.before()
-
-    val componentDiscoveryServiceComponentName =
-      ComponentName(context, ComponentDiscoveryService::class.java)
-    context.packageManager.getServiceInfo(componentDiscoveryServiceComponentName, 0).also {
-      serviceInfo ->
-      shadowOf(context.packageManager).addOrUpdateService(serviceInfo)
-    }
-
     FirebaseAppTestUtils.clearInstancesForTest()
   }
 
