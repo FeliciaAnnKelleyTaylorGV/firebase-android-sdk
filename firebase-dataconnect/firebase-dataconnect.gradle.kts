@@ -55,10 +55,18 @@ android {
   }
   kotlinOptions { jvmTarget = "1.8" }
 
+  @Suppress("UnstableApiUsage")
   testOptions {
     unitTests {
       isIncludeAndroidResources = true
       isReturnDefaultValues = true
+    }
+  }
+
+  packaging {
+    resources {
+      excludes.add("META-INF/LICENSE.md")
+      excludes.add("META-INF/LICENSE-notice.md")
     }
   }
 }
