@@ -18,15 +18,19 @@ package com.google.firebase.dataconnect.testutil
 
 import com.google.common.truth.StringSubject
 import com.google.firebase.FirebaseApp
+import com.google.firebase.dataconnect.DataConnectSettings
 import com.google.firebase.util.nextAlphanumericString
 import java.util.UUID
 import java.util.regex.Pattern
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.junit.Assert
 
 /**
@@ -105,6 +109,13 @@ inline fun <T, R, E : Any> T.assertThrows(expectedException: KClass<E>, block: T
 const val MAX_SAFE_INTEGER = 9007199254740991.0
 
 /**
+ * Generates and returns a random, valid string suitable to be the "name" of a [FirebaseApp].
+ * @param key A hardcoded random string that will be incorporated into the returned string; useful
+ * for correlating the application ID with its call site (e.g. "fmfbm74g32").
+ */
+fun randomAppName(key: String) = "appName-$key-${Random.nextAlphanumericString(length = 8)}"
+
+/**
  * Generates and returns a random, valid string suitable to be the "applicationId" of a
  * [FirebaseApp].
  * @param key A hardcoded random string that will be incorporated into the returned string; useful
@@ -118,3 +129,17 @@ fun randomApplicationId(key: String) = "appId-$key-${Random.nextAlphanumericStri
  * for correlating the application ID with its call site (e.g. "ncdd6n863r").
  */
 fun randomProjectId(key: String) = "projId-$key-${Random.nextAlphanumericString(length = 8)}"
+
+/**
+ * Generates and returns a random, valid string suitable to be a host name in [DataConnectSettings].
+ * @param key A hardcoded random string that will be incorporated into the returned string; useful
+ * for correlating the application ID with its call site (e.g. "cxncg4zbvb").
+ */
+fun randomHost(key: String) = "host.$key.${Random.nextAlphanumericString(length = 8)}"
+
+/**
+ * Generates and returns a new [DataConnectSettings] object with random values.
+ * @param hostKey A value to specify to [randomHost] (e.g. "wqxhf5apez").
+ */
+fun randomDataConnectSettings(hostKey: String) =
+  DataConnectSettings(host = randomHost(hostKey), sslEnabled = Random.nextBoolean())

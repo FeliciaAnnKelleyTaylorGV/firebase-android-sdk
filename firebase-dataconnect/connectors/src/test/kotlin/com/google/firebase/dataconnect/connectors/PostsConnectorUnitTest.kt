@@ -18,7 +18,7 @@ package com.google.firebase.dataconnect.connectors
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
-import com.google.firebase.dataconnect.testutil.MockFirebaseAppFactory
+import com.google.firebase.dataconnect.testutil.FirebaseAppUnitTestingRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,10 +27,14 @@ import org.junit.runner.RunWith
 class PostsConnectorUnitTest {
 
   @get:Rule
-  val mockFirebaseAppFactory =
-    MockFirebaseAppFactory(applicationIdKey = "y4amsax6dy", projectIdKey = "y64sjfnnhq")
+  val firebaseAppFactory =
+    FirebaseAppUnitTestingRule(
+      appNameKey = "ex2bk4bks2",
+      applicationIdKey = "2f2c3gdydn",
+      projectIdKey = "kzbqx23hhn"
+    )
 
-  private val posts by lazy { PostsConnector.getInstance(mockFirebaseAppFactory.newInstance()) }
+  private val posts by lazy { PostsConnector.getInstance(firebaseAppFactory.newInstance()) }
 
   @Test
   fun `getPost property should always return the same instance`() {

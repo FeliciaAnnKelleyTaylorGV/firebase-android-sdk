@@ -56,6 +56,7 @@ dependencies {
 
   implementation(libs.mockk)
   implementation(libs.androidx.test.junit.ktx)
+  implementation(libs.robolectric)
   implementation(libs.truth)
 }
 
