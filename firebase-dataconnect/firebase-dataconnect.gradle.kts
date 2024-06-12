@@ -26,6 +26,7 @@ plugins {
   id("copy-google-services")
   alias(libs.plugins.dokka)
   alias(libs.plugins.kotlinx.serialization)
+  alias(libs.plugins.ksp)
 }
 
 firebaseLibrary {
