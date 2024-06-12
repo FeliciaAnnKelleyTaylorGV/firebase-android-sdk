@@ -18,6 +18,7 @@ package com.google.firebase.dataconnect.di
 
 import android.content.Context
 import com.google.firebase.dataconnect.ConnectorConfig
+import com.google.firebase.dataconnect.core.DataConnectAuth
 import com.google.firebase.dataconnect.core.Logger
 import kotlin.annotation.AnnotationTarget.CLASS
 import kotlin.annotation.AnnotationTarget.FUNCTION
@@ -40,5 +41,18 @@ internal abstract class DataConnectComponent(
   @get:Provides @get:NonBlocking val nonBlockingCoroutineDispatcher: CoroutineDispatcher,
   val logger: Logger,
 ) {
+
+  fun configuredComponent(
+    dataConnectHost: String,
+    dataConnectSslEnabled: Boolean,
+    dataConnectAuth: DataConnectAuth
+  ) =
+    DataConnectConfiguredComponent.create(
+      dataConnectComponent = this,
+      dataConnectHost = dataConnectHost,
+      dataConnectSslEnabled = dataConnectSslEnabled,
+      dataConnectAuth = dataConnectAuth
+    )
+
   companion object
 }

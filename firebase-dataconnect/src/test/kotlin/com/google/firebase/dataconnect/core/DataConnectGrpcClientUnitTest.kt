@@ -24,6 +24,7 @@ import com.google.firebase.dataconnect.testutil.randomHost
 import com.google.firebase.dataconnect.testutil.randomOperationName
 import com.google.firebase.dataconnect.testutil.randomProjectId
 import com.google.firebase.dataconnect.testutil.randomRequestId
+import com.google.firebase.dataconnect.testutil.randomSslEnabled
 import com.google.protobuf.Struct
 import google.firebase.dataconnect.proto.ExecuteMutationResponse
 import google.firebase.dataconnect.proto.ExecuteQueryResponse
@@ -33,7 +34,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import java.util.regex.Pattern
-import kotlin.random.Random
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -56,8 +56,6 @@ class DataConnectGrpcClientUnitTest {
 
   private val mockDataConnectGrpcRPCsFactory =
     mockk<DataConnectGrpcRPCsFactory>(relaxed = true, name = "mockDataConnectGrpcRPCsFactory") {
-      every { host } returns (randomHost("bety6t2y5z"))
-      every { sslEnabled } returns (Random.nextBoolean())
       every { newInstance() } returns (mockDataConnectGrpcRPCs)
     }
 
@@ -65,9 +63,11 @@ class DataConnectGrpcClientUnitTest {
     DataConnectGrpcClient(
       projectId = randomProjectId("nywm75x5xm"),
       connector = randomConnectorConfig("w3v2443737"),
+      host = randomHost("bety6t2y5z"),
+      sslEnabled = randomSslEnabled(),
       dataConnectAuth = mockk<DataConnectAuth>(relaxed = true, name = "mockDataConnectAuth"),
-      grpcRPCsFactory = mockDataConnectGrpcRPCsFactory,
-      parentLogger = mockk<Logger>(relaxed = true, name = "mockLogger"),
+      dataConnectGrpcRPCsFactory = mockDataConnectGrpcRPCsFactory,
+      logger = mockk<Logger>(relaxed = true),
     )
 
   @Test

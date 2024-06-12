@@ -21,7 +21,6 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.internal.InternalAuthProvider
 import com.google.firebase.dataconnect.*
 import com.google.firebase.dataconnect.di.DataConnectComponent
-import com.google.firebase.dataconnect.di.DataConnectConfiguredComponent
 import com.google.firebase.dataconnect.di.create
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
@@ -123,8 +122,8 @@ internal class FirebaseDataConnectImpl(
           hostAndPortFromEmulatorSettings
         }
 
-      DataConnectConfiguredComponent.create(
-          dataConnectComponent = component,
+      component
+        .configuredComponent(
           dataConnectHost = host,
           dataConnectSslEnabled = sslEnabled,
           dataConnectAuth = dataConnectAuth.getLocked(),
