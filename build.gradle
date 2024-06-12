@@ -14,7 +14,7 @@
 
 buildscript {
     // TODO: remove once all sdks have migrated to version catalog
-    ext.kotlinVersion = libs.versions.kotlin.get()
+    ext.kotlinVersion = libs.versions.kotlin.stdlib.get()
     ext.coroutinesVersion = libs.versions.coroutines.get()
 
     repositories {

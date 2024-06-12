@@ -133,6 +133,8 @@ dependencies {
   implementation(libs.grpc.stub)
   implementation(libs.protobuf.java.lite)
   implementation(libs.protobuf.kotlin.lite)
+  ksp(libs.kotlin.inject.compiler.ksp)
+  implementation(libs.kotlin.inject.runtime)
 
   testCompileOnly(libs.protobuf.java)
   testImplementation(project(":firebase-dataconnect:testutil"))
