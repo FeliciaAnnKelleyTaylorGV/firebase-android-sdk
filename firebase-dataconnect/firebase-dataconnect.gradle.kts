@@ -70,6 +70,11 @@ android {
       excludes.add("META-INF/LICENSE-notice.md")
     }
   }
+
+  ksp {
+    arg("me.tatarka.inject.generateCompanionExtensions", "true")
+    arg("me.tatarka.inject.enableJavaxAnnotations", "true")
+  }
 }
 
 protobuf {

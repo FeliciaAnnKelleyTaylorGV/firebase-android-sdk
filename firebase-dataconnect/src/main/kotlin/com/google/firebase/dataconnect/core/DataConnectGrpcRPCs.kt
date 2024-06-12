@@ -18,6 +18,9 @@ package com.google.firebase.dataconnect.core
 
 import android.content.Context
 import com.google.android.gms.security.ProviderInstaller
+import com.google.firebase.dataconnect.di.Blocking
+import com.google.firebase.dataconnect.di.DataConnectHost
+import com.google.firebase.dataconnect.di.DataConnectSslEnabled
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import google.firebase.dataconnect.proto.ConnectorServiceGrpcKt
 import google.firebase.dataconnect.proto.ExecuteMutationRequest
@@ -33,6 +36,7 @@ import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import me.tatarka.inject.annotations.Inject
 
 internal interface DataConnectGrpcRPCs {
 
@@ -128,18 +132,15 @@ internal class DataConnectGrpcRPCsImpl(
 }
 
 internal interface DataConnectGrpcRPCsFactory {
-
-  val host: String
-  val sslEnabled: Boolean
-
   fun newInstance(): DataConnectGrpcRPCs
 }
 
+@Inject
 internal class DataConnectGrpcRPCsFactoryImpl(
   private val context: Context,
-  override val host: String,
-  override val sslEnabled: Boolean,
-  private val coroutineDispatcher: CoroutineDispatcher,
+  @DataConnectHost private val host: String,
+  @DataConnectSslEnabled private val sslEnabled: Boolean,
+  @Blocking private val coroutineDispatcher: CoroutineDispatcher,
 ) : DataConnectGrpcRPCsFactory {
   override fun newInstance() =
     DataConnectGrpcRPCsImpl(context, host, sslEnabled, coroutineDispatcher)

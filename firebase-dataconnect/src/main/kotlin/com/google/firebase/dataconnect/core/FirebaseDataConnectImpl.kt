@@ -20,6 +20,9 @@ import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.internal.InternalAuthProvider
 import com.google.firebase.dataconnect.*
+import com.google.firebase.dataconnect.di.DataConnectComponent
+import com.google.firebase.dataconnect.di.DataConnectConfiguredComponent
+import com.google.firebase.dataconnect.di.create
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import java.util.concurrent.Executor
@@ -43,7 +46,7 @@ internal interface FirebaseDataConnectInternal : FirebaseDataConnect {
 }
 
 internal class FirebaseDataConnectImpl(
-  private val context: Context,
+  context: Context,
   override val app: FirebaseApp,
   private val projectId: String,
   override val config: ConnectorConfig,
@@ -65,6 +68,16 @@ internal class FirebaseDataConnectImpl(
 
   override val blockingDispatcher = blockingExecutor.asCoroutineDispatcher()
   override val nonBlockingDispatcher = nonBlockingExecutor.asCoroutineDispatcher()
+
+  private val component =
+    DataConnectComponent.create(
+      context = context,
+      projectId = projectId,
+      connectorConfig = config,
+      blockingCoroutineDispatcher = blockingDispatcher,
+      nonBlockingCoroutineDispatcher = nonBlockingDispatcher,
+      logger = logger,
+    )
 
   override val coroutineScope =
     CoroutineScope(
@@ -110,14 +123,13 @@ internal class FirebaseDataConnectImpl(
           hostAndPortFromEmulatorSettings
         }
 
-      DataConnectGrpcClient(
-        projectId = projectId,
-        connector = config,
-        dataConnectAuth = dataConnectAuth.getLocked(),
-        grpcRPCsFactory =
-          DataConnectGrpcRPCsFactoryImpl(context, host, sslEnabled, blockingDispatcher),
-        parentLogger = logger,
-      )
+      DataConnectConfiguredComponent.create(
+          dataConnectComponent = component,
+          dataConnectHost = host,
+          dataConnectSslEnabled = sslEnabled,
+          dataConnectAuth = dataConnectAuth.getLocked(),
+        )
+        .dataConnectGrpcClient
     }
 
   override val lazyQueryManager =

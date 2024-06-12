@@ -18,6 +18,10 @@ package com.google.firebase.dataconnect.core
 
 import android.os.Build
 import com.google.firebase.dataconnect.*
+import com.google.firebase.dataconnect.di.DataConnectConfiguredScope
+import com.google.firebase.dataconnect.di.DataConnectHost
+import com.google.firebase.dataconnect.di.DataConnectSslEnabled
+import com.google.firebase.dataconnect.di.ProjectId
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import com.google.firebase.dataconnect.util.buildStructProto
 import com.google.firebase.dataconnect.util.decodeFromStruct
@@ -33,27 +37,29 @@ import google.firebase.dataconnect.proto.executeMutationRequest
 import google.firebase.dataconnect.proto.executeQueryRequest
 import io.grpc.Metadata
 import io.grpc.MethodDescriptor
+import javax.inject.Inject
+import javax.inject.Named
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.DeserializationStrategy
 
-internal class DataConnectGrpcClient(
-  projectId: String,
+@DataConnectConfiguredScope
+internal class DataConnectGrpcClient
+@Inject
+constructor(
+  @ProjectId projectId: String,
   connector: ConnectorConfig,
+  @DataConnectHost host: String,
+  @DataConnectSslEnabled sslEnabled: Boolean,
   private val dataConnectAuth: DataConnectAuth,
-  grpcRPCsFactory: DataConnectGrpcRPCsFactory,
-  parentLogger: Logger,
+  private val dataConnectGrpcRPCsFactory: DataConnectGrpcRPCsFactory,
+  @Named("DataConnectGrpcClient") private val logger: Logger,
 ) {
-  private val logger =
-    Logger("DataConnectGrpcClient").apply {
-      debug {
-        "Created by ${parentLogger.nameWithId};" +
-          " projectId=$projectId" +
-          " host=${grpcRPCsFactory.host}" +
-          " sslEnabled=${grpcRPCsFactory.sslEnabled}" +
-          " connector=$connector"
-      }
+  init {
+    logger.debug {
+      "projectId=$projectId" + " host=$host" + " sslEnabled=$sslEnabled" + " connector=$connector"
     }
+  }
 
   private val requestName =
     "projects/$projectId/" +
@@ -70,7 +76,7 @@ internal class DataConnectGrpcClient(
   private val lazyGrpcRPCs =
     SuspendingLazy(closedMutex) {
       check(!closed) { "DataConnectGrpcClient ${logger.nameWithId} instance has been closed" }
-      grpcRPCsFactory.newInstance()
+      dataConnectGrpcRPCsFactory.newInstance()
     }
 
   data class OperationResult(
