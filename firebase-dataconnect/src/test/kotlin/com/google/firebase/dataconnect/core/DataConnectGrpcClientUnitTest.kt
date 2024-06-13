@@ -20,17 +20,14 @@ import com.google.common.truth.Truth.assertThat
 import com.google.firebase.dataconnect.testutil.containsMatchWithNonAdjacentText
 import com.google.firebase.dataconnect.testutil.containsWithNonAdjacentText
 import com.google.firebase.dataconnect.testutil.randomConnectorConfig
-import com.google.firebase.dataconnect.testutil.randomHost
 import com.google.firebase.dataconnect.testutil.randomOperationName
 import com.google.firebase.dataconnect.testutil.randomProjectId
 import com.google.firebase.dataconnect.testutil.randomRequestId
-import com.google.firebase.dataconnect.testutil.randomSslEnabled
 import com.google.protobuf.Struct
 import google.firebase.dataconnect.proto.ExecuteMutationResponse
 import google.firebase.dataconnect.proto.ExecuteQueryResponse
 import io.grpc.Metadata
 import io.mockk.coEvery
-import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import java.util.regex.Pattern
@@ -44,29 +41,18 @@ class DataConnectGrpcClientUnitTest {
 
   private val mockDataConnectGrpcRPCs =
     mockk<DataConnectGrpcRPCs>(relaxed = true, name = "mockDataConnectGrpcRPCs") {
-      coEvery { executeQuery(any(), capture(executeQueryMetadataSlot)) } answers
-        {
-          ExecuteQueryResponse.getDefaultInstance()
-        }
-      coEvery { executeMutation(any(), capture(executeMutationMetadataSlot)) } answers
-        {
-          ExecuteMutationResponse.getDefaultInstance()
-        }
-    }
-
-  private val mockDataConnectGrpcRPCsFactory =
-    mockk<DataConnectGrpcRPCsFactory>(relaxed = true, name = "mockDataConnectGrpcRPCsFactory") {
-      every { newInstance() } returns (mockDataConnectGrpcRPCs)
+      coEvery { executeQuery(any(), capture(executeQueryMetadataSlot)) } returns
+        ExecuteQueryResponse.getDefaultInstance()
+      coEvery { executeMutation(any(), capture(executeMutationMetadataSlot)) } returns
+        ExecuteMutationResponse.getDefaultInstance()
     }
 
   private val dataConnectGrpcClient =
     DataConnectGrpcClient(
       projectId = randomProjectId("nywm75x5xm"),
-      connector = randomConnectorConfig("w3v2443737"),
-      host = randomHost("bety6t2y5z"),
-      sslEnabled = randomSslEnabled(),
+      connectorConfig = randomConnectorConfig("w3v2443737"),
       dataConnectAuth = mockk<DataConnectAuth>(relaxed = true, name = "mockDataConnectAuth"),
-      dataConnectGrpcRPCsFactory = mockDataConnectGrpcRPCsFactory,
+      dataConnectGrpcRPCs = mockDataConnectGrpcRPCs,
       logger = mockk<Logger>(relaxed = true),
     )
 

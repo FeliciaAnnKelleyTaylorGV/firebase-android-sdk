@@ -18,8 +18,6 @@ package com.google.firebase.dataconnect.di
 
 import com.google.firebase.dataconnect.core.DataConnectAuth
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient
-import com.google.firebase.dataconnect.core.DataConnectGrpcRPCsFactory
-import com.google.firebase.dataconnect.core.DataConnectGrpcRPCsFactoryImpl
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
 import javax.inject.Named
@@ -46,11 +44,6 @@ internal abstract class DataConnectConfiguredComponent(
 ) {
   val logger
     get() = dataConnectComponent.logger
-
-  @Provides
-  @DataConnectConfiguredScope
-  fun dataConnectGrpcRPCsFactory(impl: DataConnectGrpcRPCsFactoryImpl): DataConnectGrpcRPCsFactory =
-    impl
 
   @DataConnectConfiguredScope abstract val dataConnectGrpcClient: DataConnectGrpcClient
 

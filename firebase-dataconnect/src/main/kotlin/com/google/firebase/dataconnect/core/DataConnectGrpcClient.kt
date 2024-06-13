@@ -19,10 +19,7 @@ package com.google.firebase.dataconnect.core
 import android.os.Build
 import com.google.firebase.dataconnect.*
 import com.google.firebase.dataconnect.di.DataConnectConfiguredScope
-import com.google.firebase.dataconnect.di.DataConnectHost
-import com.google.firebase.dataconnect.di.DataConnectSslEnabled
 import com.google.firebase.dataconnect.di.ProjectId
-import com.google.firebase.dataconnect.util.SuspendingLazy
 import com.google.firebase.dataconnect.util.buildStructProto
 import com.google.firebase.dataconnect.util.decodeFromStruct
 import com.google.firebase.dataconnect.util.toCompactString
@@ -39,8 +36,6 @@ import io.grpc.Metadata
 import io.grpc.MethodDescriptor
 import javax.inject.Inject
 import javax.inject.Named
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.DeserializationStrategy
 
 @DataConnectConfiguredScope
@@ -48,36 +43,23 @@ internal class DataConnectGrpcClient
 @Inject
 constructor(
   @ProjectId projectId: String,
-  connector: ConnectorConfig,
-  @DataConnectHost host: String,
-  @DataConnectSslEnabled sslEnabled: Boolean,
+  connectorConfig: ConnectorConfig,
   private val dataConnectAuth: DataConnectAuth,
-  private val dataConnectGrpcRPCsFactory: DataConnectGrpcRPCsFactory,
+  private val dataConnectGrpcRPCs: DataConnectGrpcRPCs,
   @Named("DataConnectGrpcClient") private val logger: Logger,
 ) {
   init {
-    logger.debug {
-      "projectId=$projectId" + " host=$host" + " sslEnabled=$sslEnabled" + " connector=$connector"
-    }
+    logger.debug { "projectId=$projectId connectorConfig=$connectorConfig" }
   }
 
   private val requestName =
     "projects/$projectId/" +
-      "locations/${connector.location}" +
-      "/services/${connector.serviceId}" +
-      "/connectors/${connector.connector}"
+      "locations/${connectorConfig.location}" +
+      "/services/${connectorConfig.serviceId}" +
+      "/connectors/${connectorConfig.connector}"
 
   @Suppress("SpellCheckingInspection")
-  private val googRequestParamsHeaderValue = "location=${connector.location}&frontend=data"
-
-  private val closedMutex = Mutex()
-  private var closed = false
-
-  private val lazyGrpcRPCs =
-    SuspendingLazy(closedMutex) {
-      check(!closed) { "DataConnectGrpcClient ${logger.nameWithId} instance has been closed" }
-      dataConnectGrpcRPCsFactory.newInstance()
-    }
+  private val googRequestParamsHeaderValue = "location=${connectorConfig.location}&frontend=data"
 
   data class OperationResult(
     val data: Struct?,
@@ -106,8 +88,7 @@ constructor(
     )
 
     val response =
-      lazyGrpcRPCs
-        .get()
+      dataConnectGrpcRPCs
         .runCatching { executeQuery(request, metadata) }
         .onFailure {
           logger.warn(it) {
@@ -151,8 +132,7 @@ constructor(
     )
 
     val response =
-      lazyGrpcRPCs
-        .get()
+      dataConnectGrpcRPCs
         .runCatching { executeMutation(request, metadata) }
         .onFailure {
           logger.warn(it) {
@@ -186,8 +166,7 @@ constructor(
   }
 
   suspend fun close() {
-    closedMutex.withLock { closed = true }
-    lazyGrpcRPCs.initializedValueOrNull?.close()
+    dataConnectGrpcRPCs.close()
   }
 
   private companion object {

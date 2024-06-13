@@ -38,24 +38,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import me.tatarka.inject.annotations.Inject
 
-internal interface DataConnectGrpcRPCs {
-
-  suspend fun executeMutation(
-    request: ExecuteMutationRequest,
-    headers: Metadata
-  ): ExecuteMutationResponse
-
-  suspend fun executeQuery(request: ExecuteQueryRequest, headers: Metadata): ExecuteQueryResponse
-
-  suspend fun close()
-}
-
-internal class DataConnectGrpcRPCsImpl(
+@Inject
+internal class DataConnectGrpcRPCs(
   context: Context,
-  host: String,
-  sslEnabled: Boolean,
-  private val coroutineDispatcher: CoroutineDispatcher,
-) : DataConnectGrpcRPCs {
+  @DataConnectHost host: String,
+  @DataConnectSslEnabled sslEnabled: Boolean,
+  @Blocking private val coroutineDispatcher: CoroutineDispatcher,
+) {
 
   private val logger =
     Logger("DataConnectGrpcRPCsImpl").apply { debug { "host=$host sslEnabled=$sslEnabled" } }
@@ -111,13 +100,15 @@ internal class DataConnectGrpcRPCsImpl(
       ConnectorServiceGrpcKt.ConnectorServiceCoroutineStub(lazyGrpcChannel.getLocked())
     }
 
-  override suspend fun executeMutation(request: ExecuteMutationRequest, headers: Metadata) =
-    lazyGrpcStub.get().executeMutation(request, headers)
+  suspend fun executeMutation(
+    request: ExecuteMutationRequest,
+    headers: Metadata
+  ): ExecuteMutationResponse = lazyGrpcStub.get().executeMutation(request, headers)
 
-  override suspend fun executeQuery(request: ExecuteQueryRequest, headers: Metadata) =
+  suspend fun executeQuery(request: ExecuteQueryRequest, headers: Metadata): ExecuteQueryResponse =
     lazyGrpcStub.get().executeQuery(request, headers)
 
-  override suspend fun close() {
+  suspend fun close() {
     mutex.withLock { closed = true }
 
     val grpcChannel = lazyGrpcChannel.initializedValueOrNull ?: return
@@ -129,19 +120,4 @@ internal class DataConnectGrpcRPCsImpl(
       grpcChannel.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS)
     }
   }
-}
-
-internal interface DataConnectGrpcRPCsFactory {
-  fun newInstance(): DataConnectGrpcRPCs
-}
-
-@Inject
-internal class DataConnectGrpcRPCsFactoryImpl(
-  private val context: Context,
-  @DataConnectHost private val host: String,
-  @DataConnectSslEnabled private val sslEnabled: Boolean,
-  @Blocking private val coroutineDispatcher: CoroutineDispatcher,
-) : DataConnectGrpcRPCsFactory {
-  override fun newInstance() =
-    DataConnectGrpcRPCsImpl(context, host, sslEnabled, coroutineDispatcher)
 }
