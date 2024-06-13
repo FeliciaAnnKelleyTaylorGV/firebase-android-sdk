@@ -17,11 +17,11 @@ package com.google.firebase.dataconnect.core
 
 import com.google.firebase.dataconnect.ConnectorConfig
 import com.google.firebase.dataconnect.DataConnectError
+import com.google.firebase.dataconnect.testutil.connectorConfig
 import com.google.firebase.dataconnect.testutil.iterator
-import com.google.firebase.dataconnect.testutil.randomConnectorConfig
 import com.google.firebase.dataconnect.testutil.randomOperationName
 import com.google.firebase.dataconnect.testutil.randomProjectId
-import com.google.firebase.dataconnect.testutil.randomRequestId
+import com.google.firebase.dataconnect.testutil.requestId
 import com.google.firebase.dataconnect.util.buildStructProto
 import com.google.protobuf.ListValue
 import com.google.protobuf.Struct
@@ -46,6 +46,7 @@ import io.kotest.property.arbitrary.alphanumeric
 import io.kotest.property.arbitrary.egyptianHieroglyphs
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.merge
+import io.kotest.property.arbitrary.next
 import io.kotest.property.arbitrary.string
 import io.mockk.CapturingSlot
 import io.mockk.coEvery
@@ -61,7 +62,7 @@ class DataConnectGrpcClientUnitTest {
     val key = "3sw2m4vkbg"
     val testValues = TestValues.fromKey(key)
     val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
-    val requestId = randomRequestId(key)
+    val requestId = Arb.requestId(key).next()
     val operationName = randomOperationName(key)
     val variables = buildStructProto { put("foo", key) }
 
@@ -94,7 +95,7 @@ class DataConnectGrpcClientUnitTest {
     val key = "hbfkfxw5z8"
     val testValues = TestValues.fromKey(key)
     val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
-    val requestId = randomRequestId(key)
+    val requestId = Arb.requestId(key).next()
     val operationName = randomOperationName(key)
     val variables = buildStructProto { put("foo", key) }
 
@@ -132,7 +133,7 @@ class DataConnectGrpcClientUnitTest {
 
     val operationResult = runBlocking {
       dataConnectGrpcClient.executeQuery(
-        randomRequestId(key),
+        Arb.requestId(key).next(),
         randomOperationName(key),
         Struct.getDefaultInstance()
       )
@@ -152,7 +153,7 @@ class DataConnectGrpcClientUnitTest {
 
     val operationResult = runBlocking {
       dataConnectGrpcClient.executeMutation(
-        randomRequestId(key),
+        Arb.requestId(key).next(),
         randomOperationName(key),
         Struct.getDefaultInstance()
       )
@@ -177,7 +178,7 @@ class DataConnectGrpcClientUnitTest {
 
     val operationResult = runBlocking {
       dataConnectGrpcClient.executeQuery(
-        randomRequestId(key),
+        Arb.requestId(key).next(),
         randomOperationName(key),
         Struct.getDefaultInstance()
       )
@@ -202,7 +203,7 @@ class DataConnectGrpcClientUnitTest {
 
     val operationResult = runBlocking {
       dataConnectGrpcClient.executeMutation(
-        randomRequestId(key),
+        Arb.requestId(key).next(),
         randomOperationName(key),
         Struct.getDefaultInstance()
       )
@@ -224,7 +225,7 @@ class DataConnectGrpcClientUnitTest {
       shouldThrow<TestException> {
         runBlocking {
           dataConnectGrpcClient.executeQuery(
-            randomRequestId(key),
+            Arb.requestId(key).next(),
             randomOperationName(key),
             Struct.getDefaultInstance()
           )
@@ -246,7 +247,7 @@ class DataConnectGrpcClientUnitTest {
       shouldThrow<TestException> {
         runBlocking {
           dataConnectGrpcClient.executeMutation(
-            randomRequestId(key),
+            Arb.requestId(key).next(),
             randomOperationName(key),
             Struct.getDefaultInstance()
           )
@@ -275,7 +276,7 @@ class DataConnectGrpcClientUnitTest {
         logger = mockk(relaxed = true)
       )
     companion object {
-      fun fromKey(key: String): TestValues {
+      fun fromKey(key: String, rs: RandomSource = RandomSource.default()): TestValues {
         val dataConnectGrpcRPCs: DataConnectGrpcRPCs = mockk(relaxed = true)
 
         val executeQueryRequestIdSlot = slot<String>()
@@ -299,7 +300,7 @@ class DataConnectGrpcClientUnitTest {
         return TestValues(
           dataConnectGrpcRPCs = dataConnectGrpcRPCs,
           projectId = randomProjectId(key),
-          connectorConfig = randomConnectorConfig(key),
+          connectorConfig = Arb.connectorConfig(key).next(rs),
           executeQueryRequestIdSlot = executeQueryRequestIdSlot,
           executeQueryRequestSlot = executeQueryRequestSlot,
           executeMutationRequestIdSlot = executeMutationRequestIdSlot,
