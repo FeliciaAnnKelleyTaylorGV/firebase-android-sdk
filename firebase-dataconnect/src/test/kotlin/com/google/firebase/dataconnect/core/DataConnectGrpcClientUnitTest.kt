@@ -13,21 +13,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.google.firebase.dataconnect.core
 
 import com.google.firebase.dataconnect.ConnectorConfig
+import com.google.firebase.dataconnect.DataConnectError
+import com.google.firebase.dataconnect.testutil.iterator
 import com.google.firebase.dataconnect.testutil.randomConnectorConfig
 import com.google.firebase.dataconnect.testutil.randomOperationName
 import com.google.firebase.dataconnect.testutil.randomProjectId
 import com.google.firebase.dataconnect.testutil.randomRequestId
 import com.google.firebase.dataconnect.util.buildStructProto
+import com.google.protobuf.ListValue
+import com.google.protobuf.Struct
+import com.google.protobuf.Value
 import google.firebase.dataconnect.proto.ExecuteMutationRequest
 import google.firebase.dataconnect.proto.ExecuteMutationResponse
 import google.firebase.dataconnect.proto.ExecuteQueryRequest
 import google.firebase.dataconnect.proto.ExecuteQueryResponse
+import google.firebase.dataconnect.proto.GraphqlError
+import google.firebase.dataconnect.proto.SourceLocation
+import google.firebase.dataconnect.proto.executeMutationResponse
+import google.firebase.dataconnect.proto.executeQueryResponse
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.property.Arb
+import io.kotest.property.RandomSource
+import io.kotest.property.arbitrary.Codepoint
+import io.kotest.property.arbitrary.alphanumeric
+import io.kotest.property.arbitrary.egyptianHieroglyphs
+import io.kotest.property.arbitrary.int
+import io.kotest.property.arbitrary.merge
+import io.kotest.property.arbitrary.string
 import io.mockk.CapturingSlot
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -103,6 +121,96 @@ class DataConnectGrpcClientUnitTest {
     }
   }
 
+  @Test
+  fun `executeQuery() should return null data and empty errors if response is empty`() {
+    val key = "nja9w9mpcv"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    coEvery { testValues.dataConnectGrpcRPCs.executeQuery(any(), any()) } returns
+      ExecuteQueryResponse.getDefaultInstance()
+
+    val operationResult = runBlocking {
+      dataConnectGrpcClient.executeQuery(
+        randomRequestId(key),
+        randomOperationName(key),
+        Struct.getDefaultInstance()
+      )
+    }
+
+    operationResult.data.shouldBeNull()
+    operationResult.errors.shouldBeEmpty()
+  }
+
+  @Test
+  fun `executeMutation() should return null data and empty errors if response is empty`() {
+    val key = "bph4vbkf2q"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    coEvery { testValues.dataConnectGrpcRPCs.executeMutation(any(), any()) } returns
+      ExecuteMutationResponse.getDefaultInstance()
+
+    val operationResult = runBlocking {
+      dataConnectGrpcClient.executeMutation(
+        randomRequestId(key),
+        randomOperationName(key),
+        Struct.getDefaultInstance()
+      )
+    }
+
+    operationResult.data.shouldBeNull()
+    operationResult.errors.shouldBeEmpty()
+  }
+
+  @Test
+  fun `executeQuery() should return data and errors`() {
+    val key = "r8pj9yy6h9"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    val responseData = buildStructProto { put("foo", key) }
+    val responseErrors = List(3) { GraphqlErrorInfo.random(RandomSource.default()) }
+    coEvery { testValues.dataConnectGrpcRPCs.executeQuery(any(), any()) } returns
+      executeQueryResponse {
+        this.data = responseData
+        this.errors.addAll(responseErrors.map { it.graphqlError })
+      }
+
+    val operationResult = runBlocking {
+      dataConnectGrpcClient.executeQuery(
+        randomRequestId(key),
+        randomOperationName(key),
+        Struct.getDefaultInstance()
+      )
+    }
+
+    operationResult.data shouldBe responseData
+    operationResult.errors shouldBe responseErrors.map { it.dataConnectError }
+  }
+
+  @Test
+  fun `executeMutation() should return data and errors`() {
+    val key = "7vv52na427"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    val responseData = buildStructProto { put("foo", key) }
+    val responseErrors = List(3) { GraphqlErrorInfo.random(RandomSource.default()) }
+    coEvery { testValues.dataConnectGrpcRPCs.executeMutation(any(), any()) } returns
+      executeMutationResponse {
+        this.data = responseData
+        this.errors.addAll(responseErrors.map { it.graphqlError })
+      }
+
+    val operationResult = runBlocking {
+      dataConnectGrpcClient.executeMutation(
+        randomRequestId(key),
+        randomOperationName(key),
+        Struct.getDefaultInstance()
+      )
+    }
+
+    operationResult.data shouldBe responseData
+    operationResult.errors shouldBe responseErrors.map { it.dataConnectError }
+  }
+
   private data class TestValues(
     val dataConnectGrpcRPCs: DataConnectGrpcRPCs,
     val projectId: String,
@@ -150,6 +258,75 @@ class DataConnectGrpcClientUnitTest {
           executeMutationRequestIdSlot = executeMutationRequestIdSlot,
           executeMutationRequestSlot = executeMutationRequestSlot,
         )
+      }
+    }
+  }
+
+  private data class GraphqlErrorInfo(
+    val graphqlError: GraphqlError,
+    val dataConnectError: DataConnectError,
+  ) {
+    companion object {
+      private val randomPathComponents =
+        Arb.string(
+            minSize = 1,
+            maxSize = 8,
+            codepoints = Codepoint.alphanumeric().merge(Codepoint.egyptianHieroglyphs()),
+          )
+          .iterator(edgeCaseProbability = 0.33f)
+
+      private val randomMessages =
+        Arb.string(minSize = 1, maxSize = 100).iterator(edgeCaseProbability = 0.33f)
+
+      private val randomInts = Arb.int().iterator(edgeCaseProbability = 0.2f)
+
+      fun random(rs: RandomSource): GraphqlErrorInfo {
+
+        val dataConnectErrorPath = mutableListOf<DataConnectError.PathSegment>()
+        val graphqlErrorPath = ListValue.newBuilder()
+        repeat(6) {
+          if (rs.random.nextFloat() < 0.33f) {
+            val pathComponent = randomInts.next(rs)
+            dataConnectErrorPath.add(DataConnectError.PathSegment.ListIndex(pathComponent))
+            graphqlErrorPath.addValues(Value.newBuilder().setNumberValue(pathComponent.toDouble()))
+          } else {
+            val pathComponent = randomPathComponents.next(rs)
+            dataConnectErrorPath.add(DataConnectError.PathSegment.Field(pathComponent))
+            graphqlErrorPath.addValues(Value.newBuilder().setStringValue(pathComponent))
+          }
+        }
+
+        val dataConnectErrorLocations = mutableListOf<DataConnectError.SourceLocation>()
+        val graphqlErrorLocations = mutableListOf<SourceLocation>()
+        repeat(3) {
+          val line = randomInts.next(rs)
+          val column = randomInts.next(rs)
+          dataConnectErrorLocations.add(
+            DataConnectError.SourceLocation(line = line, column = column)
+          )
+          graphqlErrorLocations.add(
+            SourceLocation.newBuilder().setLine(line).setColumn(column).build()
+          )
+        }
+
+        val message = randomMessages.next(rs)
+        val graphqlError =
+          GraphqlError.newBuilder()
+            .apply {
+              setMessage(message)
+              setPath(graphqlErrorPath)
+              addAllLocations(graphqlErrorLocations)
+            }
+            .build()
+
+        val dataConnectError =
+          DataConnectError(
+            message = message,
+            path = dataConnectErrorPath.toList(),
+            locations = dataConnectErrorLocations.toList()
+          )
+
+        return GraphqlErrorInfo(graphqlError, dataConnectError)
       }
     }
   }
