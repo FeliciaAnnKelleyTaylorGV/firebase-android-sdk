@@ -52,5 +52,10 @@ internal abstract class DataConnectConfiguredComponent(
   fun loggerDataConnectGrpcClient(): Logger =
     Logger("DataConnectGrpcClient").apply { debug { "Created by ${logger.nameWithId}" } }
 
+  @Provides
+  @Named("DataConnectGrpcRPCs")
+  fun loggerDataConnectGrpcRPCs(): Logger =
+    Logger("DataConnectGrpcRPCs").apply { debug { "Created by ${logger.nameWithId}" } }
+
   companion object
 }

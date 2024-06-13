@@ -31,6 +31,7 @@ import io.grpc.ManagedChannelBuilder
 import io.grpc.Metadata
 import io.grpc.android.AndroidChannelBuilder
 import java.util.concurrent.TimeUnit
+import javax.inject.Named
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.sync.Mutex
@@ -44,19 +45,16 @@ internal class DataConnectGrpcRPCs(
   @DataConnectHost host: String,
   @DataConnectSslEnabled sslEnabled: Boolean,
   @Blocking private val coroutineDispatcher: CoroutineDispatcher,
+  @Named("DataConnectGrpcRPCs") logger: Logger,
 ) {
-
-  private val logger =
-    Logger("DataConnectGrpcRPCsImpl").apply { debug { "host=$host sslEnabled=$sslEnabled" } }
-
   private val mutex = Mutex()
   private var closed = false
 
   // Use the non-main-thread CoroutineDispatcher to avoid blocking operations on the main thread.
   private val lazyGrpcChannel =
     SuspendingLazy(mutex = mutex, coroutineContext = coroutineDispatcher) {
-      check(!closed) { "DataConnectGrpcRPCsImpl ${logger.nameWithId} instance has been closed" }
-      logger.debug { "Creation of GRPC ManagedChannel starting" }
+      check(!closed) { "DataConnectGrpcRPCs ${logger.nameWithId} instance has been closed" }
+      logger.debug { "Creating GRPC ManagedChannel for host=$host sslEnabled=$sslEnabled" }
 
       // Upgrade the Android security provider using Google Play Services.
       //
@@ -91,7 +89,7 @@ internal class DataConnectGrpcRPCs(
           AndroidChannelBuilder.usingBuilder(it).context(context).build()
         }
 
-      logger.debug { "Creation of GRPC ManagedChannel completed successfully" }
+      logger.debug { "Creating GRPC ManagedChannel for host=$host sslEnabled=$sslEnabled done" }
       grpcChannel
     }
 
