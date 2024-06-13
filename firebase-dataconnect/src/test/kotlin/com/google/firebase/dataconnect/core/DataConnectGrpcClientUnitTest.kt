@@ -34,6 +34,7 @@ import google.firebase.dataconnect.proto.GraphqlError
 import google.firebase.dataconnect.proto.SourceLocation
 import google.firebase.dataconnect.proto.executeMutationResponse
 import google.firebase.dataconnect.proto.executeQueryResponse
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
@@ -210,6 +211,52 @@ class DataConnectGrpcClientUnitTest {
     operationResult.data shouldBe responseData
     operationResult.errors shouldBe responseErrors.map { it.dataConnectError }
   }
+
+  @Test
+  fun `executeQuery() should propagate exceptions from grpc`() {
+    val key = "kxba2fg2gz"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    val grpcException = TestException(key)
+    coEvery { testValues.dataConnectGrpcRPCs.executeQuery(any(), any()) } throws grpcException
+
+    val exception =
+      shouldThrow<TestException> {
+        runBlocking {
+          dataConnectGrpcClient.executeQuery(
+            randomRequestId(key),
+            randomOperationName(key),
+            Struct.getDefaultInstance()
+          )
+        }
+      }
+
+    exception shouldBe grpcException
+  }
+
+  @Test
+  fun `executeMutation() should propagate exceptions from grpc`() {
+    val key = "q9v42fqv2t"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    val grpcException = TestException(key)
+    coEvery { testValues.dataConnectGrpcRPCs.executeMutation(any(), any()) } throws grpcException
+
+    val exception =
+      shouldThrow<TestException> {
+        runBlocking {
+          dataConnectGrpcClient.executeMutation(
+            randomRequestId(key),
+            randomOperationName(key),
+            Struct.getDefaultInstance()
+          )
+        }
+      }
+
+    exception shouldBe grpcException
+  }
+
+  private class TestException(message: String) : Exception(message)
 
   private data class TestValues(
     val dataConnectGrpcRPCs: DataConnectGrpcRPCs,
