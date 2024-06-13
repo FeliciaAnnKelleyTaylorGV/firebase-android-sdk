@@ -16,87 +16,141 @@
 
 package com.google.firebase.dataconnect.core
 
-import com.google.common.truth.Truth.assertThat
-import com.google.firebase.dataconnect.testutil.containsMatchWithNonAdjacentText
-import com.google.firebase.dataconnect.testutil.containsWithNonAdjacentText
+import com.google.firebase.dataconnect.ConnectorConfig
 import com.google.firebase.dataconnect.testutil.randomConnectorConfig
 import com.google.firebase.dataconnect.testutil.randomOperationName
 import com.google.firebase.dataconnect.testutil.randomProjectId
 import com.google.firebase.dataconnect.testutil.randomRequestId
-import com.google.protobuf.Struct
+import com.google.firebase.dataconnect.util.buildStructProto
+import google.firebase.dataconnect.proto.ExecuteMutationRequest
 import google.firebase.dataconnect.proto.ExecuteMutationResponse
+import google.firebase.dataconnect.proto.ExecuteQueryRequest
 import google.firebase.dataconnect.proto.ExecuteQueryResponse
-import io.grpc.Metadata
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.mockk.CapturingSlot
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.slot
-import java.util.regex.Pattern
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
 class DataConnectGrpcClientUnitTest {
 
-  private val executeQueryMetadataSlot = slot<Metadata>()
-  private val executeMutationMetadataSlot = slot<Metadata>()
+  @Test
+  fun `executeQuery() should send the right request`() {
+    val key = "3sw2m4vkbg"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    val requestId = randomRequestId(key)
+    val operationName = randomOperationName(key)
+    val variables = buildStructProto { put("foo", key) }
 
-  private val mockDataConnectGrpcRPCs =
-    mockk<DataConnectGrpcRPCs>(relaxed = true, name = "mockDataConnectGrpcRPCs") {
-      coEvery { executeQuery(any(), capture(executeQueryMetadataSlot)) } returns
-        ExecuteQueryResponse.getDefaultInstance()
-      coEvery { executeMutation(any(), capture(executeMutationMetadataSlot)) } returns
-        ExecuteMutationResponse.getDefaultInstance()
+    runBlocking { dataConnectGrpcClient.executeQuery(requestId, operationName, variables) }
+
+    testValues.executeQueryRequestIdSlot.let { slot ->
+      withClue("requestId w2rr32n24c") {
+        slot.isCaptured shouldBe true
+        slot.captured shouldBe requestId
+      }
     }
-
-  private val dataConnectGrpcClient =
-    DataConnectGrpcClient(
-      projectId = randomProjectId("nywm75x5xm"),
-      connectorConfig = randomConnectorConfig("w3v2443737"),
-      dataConnectAuth = mockk<DataConnectAuth>(relaxed = true, name = "mockDataConnectAuth"),
-      dataConnectGrpcRPCs = mockDataConnectGrpcRPCs,
-      logger = mockk<Logger>(relaxed = true),
-    )
-
-  @Test
-  fun `executeQuery() should include x-goog-api-client grpc header`() = runTest {
-    dataConnectGrpcClient.executeQuery(
-      requestId = randomRequestId("dx6ecw35r7"),
-      operationName = randomOperationName("ranwgj8ys6"),
-      variables = Struct.getDefaultInstance()
-    )
-
-    executeQueryMetadataSlot.captured.verifyGoogApiClientHeader()
+    testValues.executeQueryRequestSlot.let { slot ->
+      withClue("request rh3vefnap4") {
+        slot.isCaptured shouldBe true
+        slot.captured.let { request ->
+          request.name shouldBe
+            ("projects/${testValues.projectId}" +
+              "/locations/${testValues.connectorConfig.location}" +
+              "/services/${testValues.connectorConfig.serviceId}" +
+              "/connectors/${testValues.connectorConfig.connector}")
+          request.operationName shouldBe operationName
+          request.variables shouldBe variables
+        }
+      }
+    }
   }
 
   @Test
-  fun `executeMutation() should include x-goog-api-client grpc header`() = runTest {
-    dataConnectGrpcClient.executeMutation(
-      requestId = randomRequestId("wt4dsrhqdw"),
-      operationName = randomOperationName("bhkeqsb4d7"),
-      variables = Struct.getDefaultInstance()
-    )
+  fun `executeMutation() should send the right request`() {
+    val key = "hbfkfxw5z8"
+    val testValues = TestValues.fromKey(key)
+    val dataConnectGrpcClient = testValues.newDataConnectGrpcClient()
+    val requestId = randomRequestId(key)
+    val operationName = randomOperationName(key)
+    val variables = buildStructProto { put("foo", key) }
 
-    executeMutationMetadataSlot.captured.verifyGoogApiClientHeader()
+    runBlocking { dataConnectGrpcClient.executeQuery(requestId, operationName, variables) }
+
+    testValues.executeQueryRequestIdSlot.let { slot ->
+      withClue("requestId kcgx4e3j3a") {
+        slot.isCaptured shouldBe true
+        slot.captured shouldBe requestId
+      }
+    }
+    testValues.executeQueryRequestSlot.let { slot ->
+      withClue("request rb52zfft9z") {
+        slot.isCaptured shouldBe true
+        slot.captured.let { request ->
+          request.name shouldBe
+            ("projects/${testValues.projectId}" +
+              "/locations/${testValues.connectorConfig.location}" +
+              "/services/${testValues.connectorConfig.serviceId}" +
+              "/connectors/${testValues.connectorConfig.connector}")
+          request.operationName shouldBe operationName
+          request.variables shouldBe variables
+        }
+      }
+    }
   }
 
-  private companion object {
-    @Suppress("SpellCheckingInspection")
-    private val googApiClientHeader: Metadata.Key<String> =
-      Metadata.Key.of("x-goog-api-client", Metadata.ASCII_STRING_MARSHALLER)
+  private data class TestValues(
+    val dataConnectGrpcRPCs: DataConnectGrpcRPCs,
+    val projectId: String,
+    val connectorConfig: ConnectorConfig,
+    val executeQueryRequestIdSlot: CapturingSlot<String>,
+    val executeQueryRequestSlot: CapturingSlot<ExecuteQueryRequest>,
+    val executeMutationRequestIdSlot: CapturingSlot<String>,
+    val executeMutationRequestSlot: CapturingSlot<ExecuteMutationRequest>,
+  ) {
+    fun newDataConnectGrpcClient(): DataConnectGrpcClient =
+      DataConnectGrpcClient(
+        projectId = projectId,
+        connectorConfig = connectorConfig,
+        dataConnectGrpcRPCs = dataConnectGrpcRPCs,
+        logger = mockk(relaxed = true)
+      )
+    companion object {
+      fun fromKey(key: String): TestValues {
+        val dataConnectGrpcRPCs: DataConnectGrpcRPCs = mockk(relaxed = true)
 
-    private const val versionPattern = "[\\w\\d-_.]+"
+        val executeQueryRequestIdSlot = slot<String>()
+        val executeQueryRequestSlot = slot<ExecuteQueryRequest>()
+        coEvery {
+          dataConnectGrpcRPCs.executeQuery(
+            capture(executeQueryRequestIdSlot),
+            capture(executeQueryRequestSlot)
+          )
+        } returns ExecuteQueryResponse.getDefaultInstance()
 
-    fun Metadata.verifyGoogApiClientHeader() {
-      assertThat(keys()).contains(googApiClientHeader.name())
-      val values = getAll(googApiClientHeader)
-      assertThat(values).hasSize(1)
+        val executeMutationRequestIdSlot = slot<String>()
+        val executeMutationRequestSlot = slot<ExecuteMutationRequest>()
+        coEvery {
+          dataConnectGrpcRPCs.executeMutation(
+            capture(executeMutationRequestIdSlot),
+            capture(executeMutationRequestSlot)
+          )
+        } returns ExecuteMutationResponse.getDefaultInstance()
 
-      val value = values!!.single()
-      assertThat(value)
-        .containsMatchWithNonAdjacentText(Pattern.quote("gl-kotlin/") + versionPattern)
-      assertThat(value)
-        .containsMatchWithNonAdjacentText(Pattern.quote("gl-android/") + versionPattern)
-      assertThat(value).containsMatchWithNonAdjacentText(Pattern.quote("fire/") + versionPattern)
-      assertThat(value).containsWithNonAdjacentText("grpc/")
+        return TestValues(
+          dataConnectGrpcRPCs = dataConnectGrpcRPCs,
+          projectId = randomProjectId(key),
+          connectorConfig = randomConnectorConfig(key),
+          executeQueryRequestIdSlot = executeQueryRequestIdSlot,
+          executeQueryRequestSlot = executeQueryRequestSlot,
+          executeMutationRequestIdSlot = executeMutationRequestIdSlot,
+          executeMutationRequestSlot = executeMutationRequestSlot,
+        )
+      }
     }
   }
 }
