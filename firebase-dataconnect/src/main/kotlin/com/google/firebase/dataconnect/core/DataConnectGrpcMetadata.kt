@@ -16,9 +16,11 @@
 
 package com.google.firebase.dataconnect.core
 
-import android.os.Build
-import com.google.firebase.dataconnect.BuildConfig
 import com.google.firebase.dataconnect.ConnectorConfig
+import com.google.firebase.dataconnect.di.AndroidVersion
+import com.google.firebase.dataconnect.di.DataConnectSdkVersion
+import com.google.firebase.dataconnect.di.GrpcVersion
+import com.google.firebase.dataconnect.di.KotlinStdlibVersion
 import com.google.firebase.dataconnect.util.buildStructProto
 import com.google.protobuf.Struct
 import io.grpc.Metadata
@@ -28,9 +30,17 @@ import me.tatarka.inject.annotations.Inject
 internal class DataConnectGrpcMetadata(
   private val dataConnectAuth: DataConnectAuth,
   connectorConfig: ConnectorConfig,
+  @KotlinStdlibVersion private val kotlinVersion: String,
+  @AndroidVersion private val androidVersion: Int,
+  @DataConnectSdkVersion private val dataConnectSdkVersion: String,
+  @GrpcVersion private val grpcVersion: String,
 ) {
   @Suppress("SpellCheckingInspection")
   private val googRequestParamsHeaderValue = "location=${connectorConfig.location}&frontend=data"
+
+  @Suppress("SpellCheckingInspection")
+  private val googApiClientHeaderValue =
+    "gl-kotlin/$kotlinVersion gl-android/$androidVersion fire/$dataConnectSdkVersion grpc/$grpcVersion"
 
   suspend fun get(requestId: String): Metadata {
     val token = dataConnectAuth.getAccessToken(requestId)
@@ -78,17 +88,5 @@ internal class DataConnectGrpcMetadata(
     @Suppress("SpellCheckingInspection")
     private val googApiClientHeader: Metadata.Key<String> =
       Metadata.Key.of("x-goog-api-client", Metadata.ASCII_STRING_MARSHALLER)
-
-    @Suppress("SpellCheckingInspection")
-    private val googApiClientHeaderValue: String by
-      lazy(LazyThreadSafetyMode.PUBLICATION) {
-        buildList {
-            add("gl-kotlin/${KotlinVersion.CURRENT}")
-            add("gl-android/${Build.VERSION.SDK_INT}")
-            add("fire/${BuildConfig.VERSION_NAME}")
-            add("grpc/")
-          }
-          .joinToString(" ")
-      }
   }
 }

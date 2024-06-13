@@ -26,6 +26,18 @@ import kotlinx.coroutines.CoroutineDispatcher
 /** The annotated [String] is the "host" (hostname and port) of the Data Connect server to use. */
 @Qualifier internal annotation class DataConnectHost
 
+/** The annotated [String] is the Kotlin standard library version in use. */
+@Qualifier internal annotation class KotlinStdlibVersion
+
+/** The annotated [Int] is the Android SDK version in use. */
+@Qualifier internal annotation class AndroidVersion
+
+/** The annotated [String] is the version of the Data Connect SDK. */
+@Qualifier internal annotation class DataConnectSdkVersion
+
+/** The annotated [String] is the version of the GRPC library in use. */
+@Qualifier internal annotation class GrpcVersion
+
 /**
  * The annotated [Boolean] is `true` if network traffic between the client and the Data Connect
  * server, or `false` if it must be sent unencrypted.

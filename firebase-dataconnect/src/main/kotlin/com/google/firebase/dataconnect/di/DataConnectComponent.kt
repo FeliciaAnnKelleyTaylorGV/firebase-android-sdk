@@ -17,6 +17,8 @@
 package com.google.firebase.dataconnect.di
 
 import android.content.Context
+import android.os.Build
+import com.google.firebase.dataconnect.BuildConfig
 import com.google.firebase.dataconnect.ConnectorConfig
 import com.google.firebase.dataconnect.core.DataConnectAuth
 import com.google.firebase.dataconnect.core.Logger
@@ -41,6 +43,18 @@ internal abstract class DataConnectComponent(
   @get:Provides @get:NonBlocking val nonBlockingCoroutineDispatcher: CoroutineDispatcher,
   val logger: Logger,
 ) {
+
+  @get:Provides @get:KotlinStdlibVersion val kotlinVersion: String = "${KotlinVersion.CURRENT}"
+
+  @get:Provides @get:AndroidVersion val androidVersion: Int = Build.VERSION.SDK_INT
+
+  @get:Provides
+  @get:DataConnectSdkVersion
+  val dataConnectSdkVersion: String = BuildConfig.VERSION_NAME
+
+  @get:Provides
+  @get:GrpcVersion
+  val grpcVersion: String = "" // there is no way to determine the grpc version at runtime
 
   fun configuredComponent(
     dataConnectHost: String,

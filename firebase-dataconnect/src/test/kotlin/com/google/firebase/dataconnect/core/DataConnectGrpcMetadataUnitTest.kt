@@ -21,6 +21,7 @@ import com.google.firebase.dataconnect.testutil.connectorConfig
 import com.google.firebase.dataconnect.testutil.requestId
 import io.grpc.Metadata
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.RandomSource
@@ -35,18 +36,68 @@ import org.junit.Test
 class DataConnectGrpcMetadataUnitTest {
 
   @Test
-  fun `should set x-goog-request-params`() = runTest {
+  fun `should include x-goog-api-client`() = runTest {
+    val key = "pkprzbns45"
+    val testValues = DataConnectGrpcMetadataTestValues.fromKey(key)
+    val dataConnectGrpcMetadata =
+      testValues.newDataConnectGrpcMetadata(
+        kotlinVersion = "cdsz85awyc",
+        androidVersion = 490843892,
+        dataConnectSdkVersion = "v3q46qc2ax",
+        grpcVersion = "fq9fhx6j5e",
+      )
+    val requestId = Arb.requestId(key).next()
+
+    val metadata = dataConnectGrpcMetadata.get(requestId)
+
+    metadata.keys() shouldContain "x-goog-api-client"
+    val metadataKey = Metadata.Key.of("x-goog-api-client", Metadata.ASCII_STRING_MARSHALLER)
+    metadata.get(metadataKey) shouldBe
+      "gl-kotlin/cdsz85awyc gl-android/490843892 fire/v3q46qc2ax grpc/fq9fhx6j5e"
+  }
+
+  @Test
+  fun `should include x-goog-request-params`() = runTest {
     val key = "67ns7bkvx8"
     val testValues = DataConnectGrpcMetadataTestValues.fromKey(key)
+    val location = testValues.connectorConfig.location
     val dataConnectGrpcMetadata = testValues.newDataConnectGrpcMetadata()
     val requestId = Arb.requestId(key).next()
 
     val metadata = dataConnectGrpcMetadata.get(requestId)
 
     metadata.keys() shouldContain "x-goog-request-params"
-    metadata.get(
-      Metadata.Key.of("x-goog-request-params", Metadata.ASCII_STRING_MARSHALLER)
-    ) shouldBe "location=${testValues.connectorConfig.location}&frontend=data"
+    val metadataKey = Metadata.Key.of("x-goog-request-params", Metadata.ASCII_STRING_MARSHALLER)
+    metadata.get(metadataKey) shouldBe "location=${location}&frontend=data"
+  }
+
+  @Test
+  fun `should omit x-firebase-auth-token when the access token is null`() = runTest {
+    val key = "d85j28zpw9"
+    val testValues = DataConnectGrpcMetadataTestValues.fromKey(key)
+    coEvery { testValues.dataConnectAuth.getAccessToken(any()) } returns null
+    val dataConnectGrpcMetadata = testValues.newDataConnectGrpcMetadata()
+    val requestId = Arb.requestId(key).next()
+
+    val metadata = dataConnectGrpcMetadata.get(requestId)
+
+    metadata.keys() shouldNotContain "x-firebase-auth-token"
+  }
+
+  @Test
+  fun `should include x-firebase-auth-token when the access token is not null`() = runTest {
+    val key = "d85j28zpw9"
+    val accessToken = Arb.accessToken(key).next()
+    val testValues = DataConnectGrpcMetadataTestValues.fromKey(key)
+    coEvery { testValues.dataConnectAuth.getAccessToken(any()) } returns accessToken
+    val dataConnectGrpcMetadata = testValues.newDataConnectGrpcMetadata()
+    val requestId = Arb.requestId(key).next()
+
+    val metadata = dataConnectGrpcMetadata.get(requestId)
+
+    metadata.keys() shouldContain "x-firebase-auth-token"
+    val metadataKey = Metadata.Key.of("x-firebase-auth-token", Metadata.ASCII_STRING_MARSHALLER)
+    metadata.get(metadataKey) shouldBe accessToken
   }
 
   private data class DataConnectGrpcMetadataTestValues(
@@ -55,8 +106,20 @@ class DataConnectGrpcMetadataUnitTest {
     val connectorConfig: ConnectorConfig,
   ) {
 
-    fun newDataConnectGrpcMetadata(): DataConnectGrpcMetadata =
-      DataConnectGrpcMetadata(dataConnectAuth, connectorConfig)
+    fun newDataConnectGrpcMetadata(
+      kotlinVersion: String = "1.2.3",
+      androidVersion: Int = 4,
+      dataConnectSdkVersion: String = "5.6.7",
+      grpcVersion: String = "8.9.10"
+    ): DataConnectGrpcMetadata =
+      DataConnectGrpcMetadata(
+        dataConnectAuth = dataConnectAuth,
+        connectorConfig = connectorConfig,
+        kotlinVersion = kotlinVersion,
+        androidVersion = androidVersion,
+        dataConnectSdkVersion = dataConnectSdkVersion,
+        grpcVersion = grpcVersion,
+      )
 
     companion object {
       fun fromKey(
