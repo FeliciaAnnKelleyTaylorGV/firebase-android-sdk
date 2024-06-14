@@ -16,7 +16,6 @@
 
 package com.google.firebase.dataconnect.di
 
-import com.google.firebase.dataconnect.core.DataConnectAuth
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
@@ -40,22 +39,19 @@ internal abstract class DataConnectConfiguredComponent(
   @Component val dataConnectComponent: DataConnectComponent,
   @get:Provides @get:DataConnectHost val dataConnectHost: String,
   @get:Provides @get:DataConnectSslEnabled val dataConnectSslEnabled: Boolean,
-  @get:Provides val dataConnectAuth: DataConnectAuth,
+  private val parentLogger: Logger
 ) {
-  val logger
-    get() = dataConnectComponent.logger
-
   @DataConnectConfiguredScope abstract val dataConnectGrpcClient: DataConnectGrpcClient
 
   @Provides
   @Named("DataConnectGrpcClient")
   fun loggerDataConnectGrpcClient(): Logger =
-    Logger("DataConnectGrpcClient").apply { debug { "Created by ${logger.nameWithId}" } }
+    Logger("DataConnectGrpcClient").apply { debug { "Created by ${parentLogger.nameWithId}" } }
 
   @Provides
   @Named("DataConnectGrpcRPCs")
   fun loggerDataConnectGrpcRPCs(): Logger =
-    Logger("DataConnectGrpcRPCs").apply { debug { "Created by ${logger.nameWithId}" } }
+    Logger("DataConnectGrpcRPCs").apply { debug { "Created by ${parentLogger.nameWithId}" } }
 
   companion object
 }

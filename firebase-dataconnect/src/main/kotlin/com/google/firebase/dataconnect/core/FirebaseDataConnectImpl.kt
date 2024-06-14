@@ -16,20 +16,22 @@
 
 package com.google.firebase.dataconnect.core
 
-import android.content.Context
 import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.internal.InternalAuthProvider
 import com.google.firebase.dataconnect.*
-import com.google.firebase.dataconnect.di.DataConnectComponent
-import com.google.firebase.dataconnect.di.create
+import com.google.firebase.dataconnect.di.Blocking
+import com.google.firebase.dataconnect.di.DataConnectScope
+import com.google.firebase.dataconnect.di.NonBlocking
+import com.google.firebase.dataconnect.di.ProjectId
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import java.util.concurrent.Executor
+import javax.inject.Named
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.*
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
+import me.tatarka.inject.annotations.Inject
 
 internal interface FirebaseDataConnectInternal : FirebaseDataConnect {
   val logger: Logger
@@ -44,39 +46,22 @@ internal interface FirebaseDataConnectInternal : FirebaseDataConnect {
   val lazyQueryManager: SuspendingLazy<OldQueryManager>
 }
 
+@Inject
+@DataConnectScope
 internal class FirebaseDataConnectImpl(
-  context: Context,
   override val app: FirebaseApp,
-  private val projectId: String,
+  @ProjectId private val projectId: String,
   override val config: ConnectorConfig,
-  override val blockingExecutor: Executor,
-  override val nonBlockingExecutor: Executor,
-  private val deferredAuthProvider: com.google.firebase.inject.Deferred<InternalAuthProvider>,
+  private val dataConnectAuth: DataConnectAuth,
+  @Blocking override val blockingExecutor: Executor,
+  @NonBlocking override val nonBlockingExecutor: Executor,
+  private val dataConnectGrpcClientFactory: DataConnectGrpcClientFactory,
   private val creator: FirebaseDataConnectFactory,
   override val settings: DataConnectSettings,
+  @Named("FirebaseDataConnectImpl") override val logger: Logger,
 ) : FirebaseDataConnectInternal {
-
-  override val logger =
-    Logger("FirebaseDataConnectImpl").apply {
-      debug {
-        "New instance created with " +
-          "app=${app.name}, projectId=$projectId, " +
-          "config=$config, settings=$settings"
-      }
-    }
-
   override val blockingDispatcher = blockingExecutor.asCoroutineDispatcher()
   override val nonBlockingDispatcher = nonBlockingExecutor.asCoroutineDispatcher()
-
-  private val component =
-    DataConnectComponent.create(
-      context = context,
-      projectId = projectId,
-      connectorConfig = config,
-      blockingCoroutineDispatcher = blockingDispatcher,
-      nonBlockingCoroutineDispatcher = nonBlockingDispatcher,
-      logger = logger,
-    )
 
   override val coroutineScope =
     CoroutineScope(
@@ -97,21 +82,29 @@ internal class FirebaseDataConnectImpl(
   // All accesses to this variable _must_ have locked `mutex`.
   private var closed = false
 
-  private val dataConnectAuth =
-    SuspendingLazy(mutex) {
-      if (closed) throw IllegalStateException("FirebaseDataConnect instance has been closed")
-      DataConnectAuth(deferredAuthProvider, blockingExecutor, logger)
-    }
-
   override val lazyGrpcClient =
     SuspendingLazy(mutex) {
       if (closed) throw IllegalStateException("FirebaseDataConnect instance has been closed")
 
-      val hostAndPortFromSettings = Pair(settings.host, settings.sslEnabled)
-      val hostAndPortFromEmulatorSettings = emulatorSettings?.run { Pair("$host:$port", false) }
-      val (host, sslEnabled) =
-        if (hostAndPortFromEmulatorSettings == null) {
-          hostAndPortFromSettings
+      data class DataConnectServerInfo(
+        val host: String,
+        val sslEnabled: Boolean,
+        val isEmulator: Boolean
+      )
+      val dataConnectServerInfoFromSettings =
+        DataConnectServerInfo(
+          host = settings.host,
+          sslEnabled = settings.sslEnabled,
+          isEmulator = false
+        )
+      val dataConnectServerInfoFromEmulatorSettings =
+        emulatorSettings?.run {
+          DataConnectServerInfo(host = "$host:$port", sslEnabled = false, isEmulator = true)
+        }
+
+      val dataConnectServerInfo =
+        if (dataConnectServerInfoFromEmulatorSettings == null) {
+          dataConnectServerInfoFromSettings
         } else {
           if (!settings.isDefaultHost()) {
             logger.warn(
@@ -119,16 +112,13 @@ internal class FirebaseDataConnectImpl(
                 "emulator host will be used."
             )
           }
-          hostAndPortFromEmulatorSettings
+          dataConnectServerInfoFromEmulatorSettings
         }
 
-      component
-        .configuredComponent(
-          dataConnectHost = host,
-          dataConnectSslEnabled = sslEnabled,
-          dataConnectAuth = dataConnectAuth.getLocked(),
-        )
-        .dataConnectGrpcClient
+      logger.debug { "Connecting to Data Connect server: $dataConnectServerInfo" }
+      dataConnectServerInfo.run {
+        dataConnectGrpcClientFactory.newInstance(host = host, sslEnabled = sslEnabled)
+      }
     }
 
   override val lazyQueryManager =
@@ -200,7 +190,7 @@ internal class FirebaseDataConnectImpl(
 
     // Close Auth synchronously to avoid race conditions with auth callbacks. Since close()
     // is re-entrant, this is safe even if it's already been closed.
-    dataConnectAuth.initializedValueOrNull?.close()
+    dataConnectAuth.close()
 
     // Start the job to asynchronously close the gRPC client.
     while (true) {
@@ -243,4 +233,8 @@ internal class FirebaseDataConnectImpl(
     "FirebaseDataConnect(app=${app.name}, projectId=$projectId, config=$config, settings=$settings)"
 
   private data class EmulatedServiceSettings(val host: String, val port: Int)
+
+  interface DataConnectGrpcClientFactory {
+    fun newInstance(host: String, sslEnabled: Boolean): DataConnectGrpcClient
+  }
 }

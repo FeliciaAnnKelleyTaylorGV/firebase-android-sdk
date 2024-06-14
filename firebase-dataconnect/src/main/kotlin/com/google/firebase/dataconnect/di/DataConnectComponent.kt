@@ -18,14 +18,24 @@ package com.google.firebase.dataconnect.di
 
 import android.content.Context
 import android.os.Build
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.internal.InternalAuthProvider
 import com.google.firebase.dataconnect.BuildConfig
 import com.google.firebase.dataconnect.ConnectorConfig
-import com.google.firebase.dataconnect.core.DataConnectAuth
+import com.google.firebase.dataconnect.DataConnectSettings
+import com.google.firebase.dataconnect.FirebaseDataConnect
+import com.google.firebase.dataconnect.core.FirebaseDataConnectFactory
+import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl
+import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl.DataConnectGrpcClientFactory
 import com.google.firebase.dataconnect.core.Logger
+import com.google.firebase.dataconnect.core.debug
+import java.util.concurrent.Executor
+import javax.inject.Named
 import kotlin.annotation.AnnotationTarget.CLASS
 import kotlin.annotation.AnnotationTarget.FUNCTION
 import kotlin.annotation.AnnotationTarget.PROPERTY_GETTER
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asExecutor
 import me.tatarka.inject.annotations.Component
 import me.tatarka.inject.annotations.Provides
 import me.tatarka.inject.annotations.Scope
@@ -36,37 +46,58 @@ import me.tatarka.inject.annotations.Scope
 @Component
 @DataConnectScope
 internal abstract class DataConnectComponent(
+  @get:Provides val creator: FirebaseDataConnectFactory,
   @get:Provides val context: Context,
+  @get:Provides val firebaseApp: FirebaseApp,
   @get:Provides @get:ProjectId val projectId: String,
+  @get:Provides val dataConnectSettings: DataConnectSettings,
   @get:Provides val connectorConfig: ConnectorConfig,
   @get:Provides @get:Blocking val blockingCoroutineDispatcher: CoroutineDispatcher,
   @get:Provides @get:NonBlocking val nonBlockingCoroutineDispatcher: CoroutineDispatcher,
-  val logger: Logger,
+  @get:Provides val deferredAuthProvider: com.google.firebase.inject.Deferred<InternalAuthProvider>,
 ) {
+  @Provides fun dataConnect(impl: FirebaseDataConnectImpl): FirebaseDataConnect = impl
+  abstract fun dataConnect(): FirebaseDataConnect
 
-  @get:Provides @get:KotlinStdlibVersion val kotlinVersion: String = "${KotlinVersion.CURRENT}"
+  @Provides
+  @Named("FirebaseDataConnectImpl")
+  fun loggerFirebaseDataConnectImpl(): Logger =
+    Logger("FirebaseDataConnectImpl").apply {
+      debug {
+        "Created for firebaseApp=${firebaseApp.name} projectId=$projectId " +
+          "dataConnectSettings=$dataConnectSettings connectorConfig=$connectorConfig"
+      }
+    }
 
-  @get:Provides @get:AndroidVersion val androidVersion: Int = Build.VERSION.SDK_INT
+  @Provides
+  @Named("DataConnectAuth")
+  fun loggerDataConnectAuth(@Named("FirebaseDataConnectImpl") parentLogger: Logger): Logger =
+    Logger("DataConnectAuth").apply { debug { "Created by ${parentLogger.nameWithId}" } }
 
-  @get:Provides
-  @get:DataConnectSdkVersion
-  val dataConnectSdkVersion: String = BuildConfig.VERSION_NAME
+  @Provides @Blocking fun blockingExecutor(): Executor = blockingCoroutineDispatcher.asExecutor()
+  @Provides
+  @NonBlocking
+  fun nonBlockingExecutor(): Executor = nonBlockingCoroutineDispatcher.asExecutor()
 
-  @get:Provides
-  @get:GrpcVersion
-  val grpcVersion: String = "" // there is no way to determine the grpc version at runtime
+  @Provides @KotlinStdlibVersion fun kotlinVersion(): String = "${KotlinVersion.CURRENT}"
+  @Provides @AndroidVersion fun androidVersion(): Int = Build.VERSION.SDK_INT
+  @Provides @DataConnectSdkVersion fun dataConnectSdkVersion(): String = BuildConfig.VERSION_NAME
+  @Provides @GrpcVersion fun grpcVersion(): String = "" // no way to get the grpc version at runtime
 
-  fun configuredComponent(
-    dataConnectHost: String,
-    dataConnectSslEnabled: Boolean,
-    dataConnectAuth: DataConnectAuth
-  ) =
-    DataConnectConfiguredComponent.create(
-      dataConnectComponent = this,
-      dataConnectHost = dataConnectHost,
-      dataConnectSslEnabled = dataConnectSslEnabled,
-      dataConnectAuth = dataConnectAuth
-    )
+  @Provides
+  fun dataConnectGrpcClientFactory(
+    @Named("FirebaseDataConnectImpl") parentLogger: Logger
+  ): DataConnectGrpcClientFactory =
+    object : DataConnectGrpcClientFactory {
+      override fun newInstance(host: String, sslEnabled: Boolean) =
+        DataConnectConfiguredComponent.create(
+            this@DataConnectComponent,
+            host,
+            sslEnabled,
+            parentLogger = parentLogger
+          )
+          .dataConnectGrpcClient
+    }
 
   companion object
 }
