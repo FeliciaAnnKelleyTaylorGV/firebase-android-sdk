@@ -29,12 +29,17 @@ import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl
 import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl.DataConnectGrpcClientFactory
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
+import com.google.firebase.dataconnect.core.warn
 import java.util.concurrent.Executor
 import javax.inject.Named
 import kotlin.annotation.AnnotationTarget.CLASS
 import kotlin.annotation.AnnotationTarget.FUNCTION
 import kotlin.annotation.AnnotationTarget.PROPERTY_GETTER
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asExecutor
 import me.tatarka.inject.annotations.Component
 import me.tatarka.inject.annotations.Provides
@@ -59,10 +64,10 @@ internal abstract class DataConnectComponent(
   @Provides fun dataConnect(impl: FirebaseDataConnectImpl): FirebaseDataConnect = impl
   abstract fun dataConnect(): FirebaseDataConnect
 
-  @Provides
-  @Named("FirebaseDataConnectImpl")
-  fun loggerFirebaseDataConnectImpl(): Logger =
-    Logger("FirebaseDataConnectImpl").apply {
+  @get:Provides
+  @get:Named("FirebaseDataConnectImpl")
+  val parentLogger: Logger =
+    Logger("FirebaseDataConnect").apply {
       debug {
         "Created for firebaseApp=${firebaseApp.name} projectId=$projectId " +
           "dataConnectSettings=$dataConnectSettings connectorConfig=$connectorConfig"
@@ -71,13 +76,27 @@ internal abstract class DataConnectComponent(
 
   @Provides
   @Named("DataConnectAuth")
-  fun loggerDataConnectAuth(@Named("FirebaseDataConnectImpl") parentLogger: Logger): Logger =
+  fun loggerDataConnectAuth(): Logger =
     Logger("DataConnectAuth").apply { debug { "Created by ${parentLogger.nameWithId}" } }
 
-  @Provides @Blocking fun blockingExecutor(): Executor = blockingCoroutineDispatcher.asExecutor()
-  @Provides
-  @NonBlocking
-  fun nonBlockingExecutor(): Executor = nonBlockingCoroutineDispatcher.asExecutor()
+  @get:Provides
+  @get:Blocking
+  val blockingExecutor: Executor = blockingCoroutineDispatcher.asExecutor()
+
+  @get:Provides
+  @get:NonBlocking
+  val nonBlockingExecutor: Executor = nonBlockingCoroutineDispatcher.asExecutor()
+
+  @get:Provides
+  val coroutineScope: CoroutineScope =
+    CoroutineScope(
+      SupervisorJob() +
+        nonBlockingCoroutineDispatcher +
+        CoroutineName(parentLogger.nameWithId) +
+        CoroutineExceptionHandler { _, throwable ->
+          parentLogger.warn(throwable) { "uncaught exception from a coroutine" }
+        }
+    )
 
   @Provides @KotlinStdlibVersion fun kotlinVersion(): String = "${KotlinVersion.CURRENT}"
   @Provides @AndroidVersion fun androidVersion(): Int = Build.VERSION.SDK_INT

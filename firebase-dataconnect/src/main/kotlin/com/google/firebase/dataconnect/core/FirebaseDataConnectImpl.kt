@@ -58,20 +58,11 @@ internal class FirebaseDataConnectImpl(
   private val dataConnectGrpcClientFactory: DataConnectGrpcClientFactory,
   private val creator: FirebaseDataConnectFactory,
   override val settings: DataConnectSettings,
+  override val coroutineScope: CoroutineScope,
   @Named("FirebaseDataConnectImpl") override val logger: Logger,
 ) : FirebaseDataConnectInternal {
   override val blockingDispatcher = blockingExecutor.asCoroutineDispatcher()
   override val nonBlockingDispatcher = nonBlockingExecutor.asCoroutineDispatcher()
-
-  override val coroutineScope =
-    CoroutineScope(
-      SupervisorJob() +
-        nonBlockingDispatcher +
-        CoroutineName(logger.nameWithId) +
-        CoroutineExceptionHandler { _, throwable ->
-          logger.warn(throwable) { "uncaught exception from a coroutine" }
-        }
-    )
 
   // Protects `closed`, `grpcClient`, `emulatorSettings`, and `queryManager`.
   private val mutex = Mutex()
@@ -128,6 +119,7 @@ internal class FirebaseDataConnectImpl(
     }
 
   override fun useEmulator(host: String, port: Int): Unit = runBlocking {
+    logger.debug { "useEmulator(host=$host, port=$port)" }
     mutex.withLock {
       if (lazyGrpcClient.initializedValueOrNull != null) {
         throw IllegalStateException(
