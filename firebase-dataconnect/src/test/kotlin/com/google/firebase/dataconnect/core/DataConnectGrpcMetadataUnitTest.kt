@@ -20,6 +20,7 @@ import com.google.firebase.dataconnect.testutil.accessToken
 import com.google.firebase.dataconnect.testutil.connectorConfig
 import com.google.firebase.dataconnect.testutil.requestId
 import io.grpc.Metadata
+import io.kotest.assertions.asClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
@@ -50,10 +51,12 @@ class DataConnectGrpcMetadataUnitTest {
 
     val metadata = dataConnectGrpcMetadata.get(requestId)
 
-    metadata.keys() shouldContain "x-goog-api-client"
-    val metadataKey = Metadata.Key.of("x-goog-api-client", Metadata.ASCII_STRING_MARSHALLER)
-    metadata.get(metadataKey) shouldBe
-      "gl-kotlin/cdsz85awyc gl-android/490843892 fire/v3q46qc2ax grpc/fq9fhx6j5e"
+    metadata.asClue {
+      it.keys() shouldContain "x-goog-api-client"
+      val metadataKey = Metadata.Key.of("x-goog-api-client", Metadata.ASCII_STRING_MARSHALLER)
+      it.get(metadataKey) shouldBe
+        "gl-kotlin/cdsz85awyc gl-android/490843892 fire/v3q46qc2ax grpc/fq9fhx6j5e"
+    }
   }
 
   @Test
@@ -66,9 +69,11 @@ class DataConnectGrpcMetadataUnitTest {
 
     val metadata = dataConnectGrpcMetadata.get(requestId)
 
-    metadata.keys() shouldContain "x-goog-request-params"
-    val metadataKey = Metadata.Key.of("x-goog-request-params", Metadata.ASCII_STRING_MARSHALLER)
-    metadata.get(metadataKey) shouldBe "location=${location}&frontend=data"
+    metadata.asClue {
+      it.keys() shouldContain "x-goog-request-params"
+      val metadataKey = Metadata.Key.of("x-goog-request-params", Metadata.ASCII_STRING_MARSHALLER)
+      it.get(metadataKey) shouldBe "location=${location}&frontend=data"
+    }
   }
 
   @Test
@@ -81,7 +86,7 @@ class DataConnectGrpcMetadataUnitTest {
 
     val metadata = dataConnectGrpcMetadata.get(requestId)
 
-    metadata.keys() shouldNotContain "x-firebase-auth-token"
+    metadata.asClue { it.keys() shouldNotContain "x-firebase-auth-token" }
   }
 
   @Test
@@ -95,9 +100,11 @@ class DataConnectGrpcMetadataUnitTest {
 
     val metadata = dataConnectGrpcMetadata.get(requestId)
 
-    metadata.keys() shouldContain "x-firebase-auth-token"
-    val metadataKey = Metadata.Key.of("x-firebase-auth-token", Metadata.ASCII_STRING_MARSHALLER)
-    metadata.get(metadataKey) shouldBe accessToken
+    metadata.asClue {
+      it.keys() shouldContain "x-firebase-auth-token"
+      val metadataKey = Metadata.Key.of("x-firebase-auth-token", Metadata.ASCII_STRING_MARSHALLER)
+      it.get(metadataKey) shouldBe accessToken
+    }
   }
 
   private data class DataConnectGrpcMetadataTestValues(
