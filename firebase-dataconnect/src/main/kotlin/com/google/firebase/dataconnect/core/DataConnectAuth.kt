@@ -59,7 +59,17 @@ internal class DataConnectAuth(
     logger.debug { "close()" }
     mutex.withLock {
       closed = true
-      authProvider?.removeIdTokenListener(idTokenListener)
+
+      try {
+        authProvider?.removeIdTokenListener(idTokenListener)
+      } catch (e: IllegalStateException) {
+        // Work around a race condition where addIdTokenListener() throws if the FirebaseApp is
+        // deleted during or before its invocation.
+        if (e.message != "FirebaseApp was deleted") {
+          throw e
+        }
+      }
+
       authProvider = null
     }
   }
@@ -142,7 +152,16 @@ internal class DataConnectAuth(
 
       logger.debug { "onInternalAuthProviderAvailable($newId) setting InternalAuthProvider" }
       authProvider = newAuthProvider
-      newAuthProvider.addIdTokenListener(idTokenListener)
+
+      try {
+        newAuthProvider.addIdTokenListener(idTokenListener)
+      } catch (e: IllegalStateException) {
+        // Work around a race condition where addIdTokenListener() throws if the FirebaseApp is
+        // deleted during or before its invocation.
+        if (e.message != "FirebaseApp was deleted") {
+          throw e
+        }
+      }
     }
 
   private suspend fun onIdTokenChanged(result: InternalTokenResult) {
