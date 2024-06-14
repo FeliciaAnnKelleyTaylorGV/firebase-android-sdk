@@ -22,6 +22,7 @@ import com.google.firebase.dataconnect.di.Blocking
 import com.google.firebase.dataconnect.di.DataConnectScope
 import com.google.firebase.dataconnect.di.NonBlocking
 import com.google.firebase.dataconnect.di.ProjectId
+import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import java.util.concurrent.Executor

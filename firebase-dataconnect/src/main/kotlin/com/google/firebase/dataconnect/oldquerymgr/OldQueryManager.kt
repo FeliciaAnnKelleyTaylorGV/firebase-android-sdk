@@ -14,20 +14,47 @@
  * limitations under the License.
  */
 
-package com.google.firebase.dataconnect.core
+package com.google.firebase.dataconnect.oldquerymgr
 
 import com.google.firebase.dataconnect.*
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient.OperationResult
-import com.google.firebase.dataconnect.util.*
+import com.google.firebase.dataconnect.core.FirebaseDataConnectInternal
+import com.google.firebase.dataconnect.core.Logger
+import com.google.firebase.dataconnect.core.debug
+import com.google.firebase.dataconnect.core.deserialize
+import com.google.firebase.dataconnect.core.warn
+import com.google.firebase.dataconnect.util.NullableReference
+import com.google.firebase.dataconnect.util.ReferenceCounted
+import com.google.firebase.dataconnect.util.SequencedReference
+import com.google.firebase.dataconnect.util.SuspendingLazy
+import com.google.firebase.dataconnect.util.calculateSha512
+import com.google.firebase.dataconnect.util.encodeToStruct
+import com.google.firebase.dataconnect.util.map
+import com.google.firebase.dataconnect.util.mapSuspending
+import com.google.firebase.dataconnect.util.nextSequenceNumber
+import com.google.firebase.dataconnect.util.toAlphaNumericString
+import com.google.firebase.dataconnect.util.toCompactString
+import com.google.firebase.dataconnect.util.toStructProto
 import com.google.firebase.util.nextAlphanumericString
 import com.google.protobuf.Struct
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.DeserializationStrategy
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.random.Random
-import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.*
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.*
-import kotlinx.serialization.DeserializationStrategy
 
 internal class OldQueryManager(dataConnect: FirebaseDataConnectInternal) {
   private val logger =
