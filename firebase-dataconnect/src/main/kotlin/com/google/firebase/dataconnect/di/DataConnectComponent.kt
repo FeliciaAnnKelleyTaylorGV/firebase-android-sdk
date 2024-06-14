@@ -24,12 +24,15 @@ import com.google.firebase.dataconnect.BuildConfig
 import com.google.firebase.dataconnect.ConnectorConfig
 import com.google.firebase.dataconnect.DataConnectSettings
 import com.google.firebase.dataconnect.FirebaseDataConnect
+import com.google.firebase.dataconnect.core.DataConnectGrpcClient
 import com.google.firebase.dataconnect.core.FirebaseDataConnectFactory
 import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl
-import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl.DataConnectGrpcClientFactory
+import com.google.firebase.dataconnect.core.FirebaseDataConnectInternal.ConfiguredComponents
+import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl.ConfiguredComponentsFactory
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
 import com.google.firebase.dataconnect.core.warn
+import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import java.util.concurrent.Executor
 import javax.inject.Named
 import kotlin.annotation.AnnotationTarget.CLASS
@@ -104,18 +107,20 @@ internal abstract class DataConnectComponent(
   @Provides @GrpcVersion fun grpcVersion(): String = "" // no way to get the grpc version at runtime
 
   @Provides
-  fun dataConnectGrpcClientFactory(
-    @Named("FirebaseDataConnectImpl") parentLogger: Logger
-  ): DataConnectGrpcClientFactory =
-    object : DataConnectGrpcClientFactory {
-      override fun newInstance(host: String, sslEnabled: Boolean) =
-        DataConnectConfiguredComponent.create(
-            this@DataConnectComponent,
-            host,
-            sslEnabled,
-            parentLogger = parentLogger
-          )
-          .dataConnectGrpcClient
+  fun dataConnectGrpcClientFactory(): ConfiguredComponentsFactory =
+    object : ConfiguredComponentsFactory {
+      override fun newConfiguredComponents(host: String, sslEnabled: Boolean): ConfiguredComponents {
+        val childComponent = DataConnectConfiguredComponent.create(
+          this@DataConnectComponent,
+          host,
+          sslEnabled,
+          parentLogger = parentLogger
+        )
+        return object :ConfiguredComponents {
+          override val grpcClient = childComponent.dataConnectGrpcClient
+          override val queryManager = childComponent.queryManager
+        }
+      }
     }
 
   companion object

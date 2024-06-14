@@ -17,17 +17,13 @@
 package com.google.firebase.dataconnect.oldquerymgr
 
 import com.google.firebase.dataconnect.QueryRef
-import com.google.firebase.dataconnect.core.FirebaseDataConnectInternal
-import com.google.firebase.dataconnect.core.Logger
-import com.google.firebase.dataconnect.core.debug
+import com.google.firebase.dataconnect.di.DataConnectScope
 import com.google.firebase.dataconnect.util.SequencedReference
+import me.tatarka.inject.annotations.Inject
 
-internal class OldQueryManager(dataConnect: FirebaseDataConnectInternal) {
-  private val logger =
-    Logger("OldQueryManager").apply { debug { "Created by ${dataConnect.logger.nameWithId}" } }
-
-  private val liveQueries = LiveQueries(dataConnect, parentLogger = logger)
-
+@Inject
+@DataConnectScope
+internal class OldQueryManager(private val liveQueries: LiveQueries) {
   suspend fun <Data, Variables> execute(
     query: QueryRef<Data, Variables>
   ): SequencedReference<Result<Data>> =

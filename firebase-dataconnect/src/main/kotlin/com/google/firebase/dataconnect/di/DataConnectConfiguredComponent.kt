@@ -19,6 +19,7 @@ package com.google.firebase.dataconnect.di
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
+import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import javax.inject.Named
 import kotlin.annotation.AnnotationTarget.CLASS
 import kotlin.annotation.AnnotationTarget.FUNCTION
@@ -42,6 +43,7 @@ internal abstract class DataConnectConfiguredComponent(
   private val parentLogger: Logger
 ) {
   @DataConnectConfiguredScope abstract val dataConnectGrpcClient: DataConnectGrpcClient
+  @DataConnectConfiguredScope abstract val queryManager: OldQueryManager
 
   @Provides
   @Named("DataConnectGrpcClient")

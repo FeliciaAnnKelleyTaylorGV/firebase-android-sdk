@@ -29,14 +29,13 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import me.tatarka.inject.annotations.Inject
+import javax.inject.Named
 
+@Inject
 internal class LiveQueries(
-  val dataConnect: FirebaseDataConnectInternal,
-  parentLogger: Logger,
+  @Named("LiveQueries") private val logger: Logger,
 ) {
-  private val logger =
-    Logger("LiveQueries").apply { debug { "Created by ${parentLogger.nameWithId}" } }
-
   private val mutex = Mutex()
 
   // NOTE: All accesses to `referenceCountedLiveQueryByKey` and the `refCount` field of each value

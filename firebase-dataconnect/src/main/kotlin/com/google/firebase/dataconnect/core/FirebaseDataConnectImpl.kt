@@ -43,8 +43,12 @@ internal interface FirebaseDataConnectInternal : FirebaseDataConnect {
   val nonBlockingExecutor: Executor
   val nonBlockingDispatcher: CoroutineDispatcher
 
-  val lazyGrpcClient: SuspendingLazy<DataConnectGrpcClient>
-  val lazyQueryManager: SuspendingLazy<OldQueryManager>
+  val lazyConfiguredComponents: SuspendingLazy<ConfiguredComponents>
+
+  interface ConfiguredComponents {
+    val grpcClient: DataConnectGrpcClient
+    val queryManager: OldQueryManager
+  }
 }
 
 @Inject
@@ -56,7 +60,7 @@ internal class FirebaseDataConnectImpl(
   private val dataConnectAuth: DataConnectAuth,
   @Blocking override val blockingExecutor: Executor,
   @NonBlocking override val nonBlockingExecutor: Executor,
-  private val dataConnectGrpcClientFactory: DataConnectGrpcClientFactory,
+  private val configuredComponentsFactory: ConfiguredComponentsFactory,
   private val creator: FirebaseDataConnectFactory,
   override val settings: DataConnectSettings,
   override val coroutineScope: CoroutineScope,
@@ -74,7 +78,7 @@ internal class FirebaseDataConnectImpl(
   // All accesses to this variable _must_ have locked `mutex`.
   private var closed = false
 
-  override val lazyGrpcClient =
+  override val lazyConfiguredComponents =
     SuspendingLazy(mutex) {
       if (closed) throw IllegalStateException("FirebaseDataConnect instance has been closed")
 
@@ -109,20 +113,14 @@ internal class FirebaseDataConnectImpl(
 
       logger.debug { "Connecting to Data Connect server: $dataConnectServerInfo" }
       dataConnectServerInfo.run {
-        dataConnectGrpcClientFactory.newInstance(host = host, sslEnabled = sslEnabled)
+        configuredComponentsFactory.newConfiguredComponents(host = host, sslEnabled = sslEnabled)
       }
-    }
-
-  override val lazyQueryManager =
-    SuspendingLazy(mutex) {
-      if (closed) throw IllegalStateException("FirebaseDataConnect instance has been closed")
-      OldQueryManager(this)
     }
 
   override fun useEmulator(host: String, port: Int): Unit = runBlocking {
     logger.debug { "useEmulator(host=$host, port=$port)" }
     mutex.withLock {
-      if (lazyGrpcClient.initializedValueOrNull != null) {
+      if (lazyConfiguredComponents.initializedValueOrNull != null) {
         throw IllegalStateException(
           "Cannot call useEmulator() after instance has already been initialized."
         )
@@ -198,7 +196,7 @@ internal class FirebaseDataConnectImpl(
       @OptIn(DelicateCoroutinesApi::class)
       val newCloseJob =
         GlobalScope.async<Unit>(start = CoroutineStart.LAZY) {
-          lazyGrpcClient.initializedValueOrNull?.close()
+          lazyConfiguredComponents.initializedValueOrNull?.grpcClient?.close()
         }
 
       newCloseJob.invokeOnCompletion { exception ->
@@ -227,7 +225,7 @@ internal class FirebaseDataConnectImpl(
 
   private data class EmulatedServiceSettings(val host: String, val port: Int)
 
-  interface DataConnectGrpcClientFactory {
-    fun newInstance(host: String, sslEnabled: Boolean): DataConnectGrpcClient
+  interface ConfiguredComponentsFactory {
+    fun newConfiguredComponents(host: String, sslEnabled: Boolean): FirebaseDataConnectInternal.ConfiguredComponents
   }
 }
