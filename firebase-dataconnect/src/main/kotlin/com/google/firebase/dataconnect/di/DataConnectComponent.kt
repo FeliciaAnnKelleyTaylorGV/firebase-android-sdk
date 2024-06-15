@@ -64,8 +64,9 @@ internal abstract class DataConnectComponent(
   @get:Provides @get:NonBlocking val nonBlockingCoroutineDispatcher: CoroutineDispatcher,
   @get:Provides val deferredAuthProvider: com.google.firebase.inject.Deferred<InternalAuthProvider>,
 ) {
-  @Provides fun dataConnect(impl: FirebaseDataConnectImpl): FirebaseDataConnect = impl
   abstract fun dataConnect(): FirebaseDataConnect
+
+  @Provides fun dataConnect(impl: FirebaseDataConnectImpl): FirebaseDataConnect = impl
 
   @get:Provides
   @get:Named("FirebaseDataConnectImpl")
@@ -102,8 +103,11 @@ internal abstract class DataConnectComponent(
     )
 
   @Provides @KotlinStdlibVersion fun kotlinVersion(): String = "${KotlinVersion.CURRENT}"
+
   @Provides @AndroidVersion fun androidVersion(): Int = Build.VERSION.SDK_INT
+
   @Provides @DataConnectSdkVersion fun dataConnectSdkVersion(): String = BuildConfig.VERSION_NAME
+
   @Provides @GrpcVersion fun grpcVersion(): String = "" // no way to get the grpc version at runtime
 
   @Provides

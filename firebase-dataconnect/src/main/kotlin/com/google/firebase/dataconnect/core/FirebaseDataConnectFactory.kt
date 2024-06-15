@@ -74,9 +74,8 @@ internal class FirebaseDataConnectFactory(
   private fun FirebaseDataConnect.Companion.newInstance(
     config: ConnectorConfig,
     settings: DataConnectSettings?
-  ): FirebaseDataConnect {
-    val component =
-      DataConnectComponent.create(
+  ): FirebaseDataConnect =
+    DataConnectComponent.create(
         creator = this@FirebaseDataConnectFactory,
         context = context,
         firebaseApp = firebaseApp,
@@ -87,9 +86,7 @@ internal class FirebaseDataConnectFactory(
         nonBlockingCoroutineDispatcher = nonBlockingExecutor.asCoroutineDispatcher(),
         deferredAuthProvider = deferredAuthProvider,
       )
-
-    return component.dataConnect()
-  }
+      .dataConnect()
 
   fun remove(instance: FirebaseDataConnect) {
     lock.withLock {
