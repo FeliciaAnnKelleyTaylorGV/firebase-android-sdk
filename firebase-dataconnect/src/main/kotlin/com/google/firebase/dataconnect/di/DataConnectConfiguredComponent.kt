@@ -19,7 +19,10 @@ package com.google.firebase.dataconnect.di
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
+import com.google.firebase.dataconnect.oldquerymgr.LiveQueries
+import com.google.firebase.dataconnect.oldquerymgr.LiveQuery
 import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
+import com.google.protobuf.Struct
 import javax.inject.Named
 import kotlin.annotation.AnnotationTarget.CLASS
 import kotlin.annotation.AnnotationTarget.FUNCTION
@@ -54,6 +57,30 @@ internal abstract class DataConnectConfiguredComponent(
   @Named("DataConnectGrpcRPCs")
   fun loggerDataConnectGrpcRPCs(): Logger =
     Logger("DataConnectGrpcRPCs").apply { debug { "Created by ${parentLogger.nameWithId}" } }
+
+  @Provides
+  @Named("LiveQueries")
+  fun loggerLiveQueries(): Logger =
+    Logger("LiveQueries").apply { debug { "Created by ${parentLogger.nameWithId}" } }
+
+  @Provides
+  fun liveQueryFactory(): LiveQueries.LiveQueryFactory =
+    object : LiveQueries.LiveQueryFactory {
+      override fun newLiveQuery(
+        key: LiveQuery.Key,
+        operationName: String,
+        variables: Struct,
+        parentLogger: Logger,
+      ): LiveQuery =
+        LiveQueryComponent.create(
+            this@DataConnectConfiguredComponent,
+            key,
+            operationName,
+            variables,
+            parentLogger
+          )
+          .liveQuery
+    }
 
   companion object
 }

@@ -112,9 +112,15 @@ internal class FirebaseDataConnectImpl(
         }
 
       logger.debug { "Connecting to Data Connect server: $dataConnectServerInfo" }
-      dataConnectServerInfo.run {
-        configuredComponentsFactory.newConfiguredComponents(host = host, sslEnabled = sslEnabled)
-      }
+      val x =
+        dataConnectServerInfo.run {
+          configuredComponentsFactory.newConfiguredComponents(host = host, sslEnabled = sslEnabled)
+        }
+
+      val q1 = x.queryManager
+      val q2 = x.queryManager
+      println("zzyzx q1===q2: ${q1===q2}")
+      x
     }
 
   override fun useEmulator(host: String, port: Int): Unit = runBlocking {
@@ -226,6 +232,9 @@ internal class FirebaseDataConnectImpl(
   private data class EmulatedServiceSettings(val host: String, val port: Int)
 
   interface ConfiguredComponentsFactory {
-    fun newConfiguredComponents(host: String, sslEnabled: Boolean): FirebaseDataConnectInternal.ConfiguredComponents
+    fun newConfiguredComponents(
+      host: String,
+      sslEnabled: Boolean
+    ): FirebaseDataConnectInternal.ConfiguredComponents
   }
 }

@@ -17,33 +17,31 @@
 package com.google.firebase.dataconnect.oldquerymgr
 
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient.OperationResult
-import com.google.firebase.dataconnect.core.FirebaseDataConnectInternal
 import com.google.firebase.dataconnect.core.Logger
-import com.google.firebase.dataconnect.core.debug
 import com.google.firebase.dataconnect.core.deserialize
 import com.google.firebase.dataconnect.core.warn
+import com.google.firebase.dataconnect.di.Blocking
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SequencedReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import com.google.firebase.dataconnect.util.mapSuspending
+import javax.inject.Named
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
+import me.tatarka.inject.annotations.Assisted
+import me.tatarka.inject.annotations.Inject
 
+@Inject
 internal class RegisteredDataDeserialzer<T>(
-  private val dataConnect: FirebaseDataConnectInternal,
-  registrationId: String,
-  val dataDeserializer: DeserializationStrategy<T>,
-  parentLogger: Logger
+  @Assisted val dataDeserializer: DeserializationStrategy<T>,
+  @Blocking private val coroutineDispatcher: CoroutineDispatcher,
+  @Named("RegisteredDataDeserialzer") private val logger: Logger,
 ) {
-  private val logger =
-    Logger("RegisteredDataDeserialzer").apply {
-      debug { "Created by ${parentLogger.nameWithId} " + "with registrationId=$registrationId" }
-    }
-
   // A flow that emits a value every time that there is an update, either a successful or an
   // unsuccessful update. There is no replay cache in this shared flow because there is no way to
   // atomically emit a new event and ensure that it has a larger sequence number, and we don't want
@@ -128,9 +126,7 @@ internal class RegisteredDataDeserialzer<T>(
     sequencedResult: SequencedReference<Result<OperationResult>>
   ): SuspendingLazy<Result<T>> = SuspendingLazy {
     sequencedResult.ref
-      .mapCatching {
-        withContext(dataConnect.blockingDispatcher) { it.deserialize(dataDeserializer) }
-      }
+      .mapCatching { withContext(coroutineDispatcher) { it.deserialize(dataDeserializer) } }
       .onFailure {
         // If the overall result was successful then the failure _must_ have occurred during
         // deserialization. Log the deserialization failure so it doesn't go unnoticed.

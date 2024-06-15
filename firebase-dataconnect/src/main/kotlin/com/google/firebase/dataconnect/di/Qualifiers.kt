@@ -23,6 +23,9 @@ import kotlinx.coroutines.CoroutineDispatcher
 /** The annotated [String] is the Firebase Project ID. */
 @Qualifier internal annotation class ProjectId
 
+/** The annotated [String] is the name of a GraphQL operation (i.e. query or mutation). */
+@Qualifier internal annotation class OperationName
+
 /** The annotated [String] is the "host" (hostname and port) of the Data Connect server to use. */
 @Qualifier internal annotation class DataConnectHost
 

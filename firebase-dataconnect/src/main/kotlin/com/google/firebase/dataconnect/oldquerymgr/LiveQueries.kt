@@ -17,23 +17,26 @@
 package com.google.firebase.dataconnect.oldquerymgr
 
 import com.google.firebase.dataconnect.*
-import com.google.firebase.dataconnect.core.FirebaseDataConnectInternal
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
+import com.google.firebase.dataconnect.di.DataConnectConfiguredScope
 import com.google.firebase.dataconnect.util.ReferenceCounted
 import com.google.firebase.dataconnect.util.calculateSha512
 import com.google.firebase.dataconnect.util.encodeToStruct
 import com.google.firebase.dataconnect.util.toAlphaNumericString
 import com.google.firebase.dataconnect.util.toStructProto
+import com.google.protobuf.Struct
+import javax.inject.Named
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import me.tatarka.inject.annotations.Inject
-import javax.inject.Named
 
 @Inject
+@DataConnectConfiguredScope
 internal class LiveQueries(
+  private val liveQueryFactory: LiveQueryFactory,
   @Named("LiveQueries") private val logger: Logger,
 ) {
   private val mutex = Mutex()
@@ -67,16 +70,9 @@ internal class LiveQueries(
 
     val referenceCountedLiveQuery =
       referenceCountedLiveQueryByKey.getOrPut(key) {
-        ReferenceCounted(
-          LiveQuery(
-            dataConnect = dataConnect,
-            key = key,
-            operationName = query.operationName,
-            variables = variablesStruct,
-            parentLogger = logger,
-          ),
-          refCount = 0
-        )
+        val liveQuery =
+          liveQueryFactory.newLiveQuery(key, query.operationName, variablesStruct, logger)
+        ReferenceCounted(liveQuery, refCount = 0)
       }
 
     referenceCountedLiveQuery.refCount++
@@ -100,5 +96,14 @@ internal class LiveQueries(
       referenceCountedLiveQueryByKey.remove(liveQuery.key)
       liveQuery.close()
     }
+  }
+
+  interface LiveQueryFactory {
+    fun newLiveQuery(
+      key: LiveQuery.Key,
+      operationName: String,
+      variables: Struct,
+      parentLogger: Logger
+    ): LiveQuery
   }
 }

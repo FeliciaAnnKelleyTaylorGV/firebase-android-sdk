@@ -16,19 +16,23 @@
 
 package com.google.firebase.dataconnect.oldquerymgr
 
+import com.google.firebase.dataconnect.core.DataConnectGrpcClient
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient.OperationResult
-import com.google.firebase.dataconnect.core.FirebaseDataConnectInternal
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
+import com.google.firebase.dataconnect.di.LiveQueryScope
+import com.google.firebase.dataconnect.di.NonBlocking
+import com.google.firebase.dataconnect.di.OperationName
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SequencedReference
 import com.google.firebase.dataconnect.util.map
 import com.google.firebase.dataconnect.util.nextSequenceNumber
-import com.google.firebase.dataconnect.util.toCompactString
 import com.google.firebase.util.nextAlphanumericString
 import com.google.protobuf.Struct
 import java.util.concurrent.CopyOnWriteArrayList
+import javax.inject.Named
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -40,24 +44,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.DeserializationStrategy
+import me.tatarka.inject.annotations.Inject
 
+@Inject
+@LiveQueryScope
 internal class LiveQuery(
-  private val dataConnect: FirebaseDataConnectInternal,
   val key: Key,
-  private val operationName: String,
+  @OperationName private val operationName: String,
   private val variables: Struct,
-  parentLogger: Logger,
+  parentCoroutineScope: CoroutineScope,
+  @NonBlocking private val coroutineDispatcher: CoroutineDispatcher,
+  private val grpcClient: DataConnectGrpcClient,
+  private val registeredDataDeserialzerFactory: RegisteredDataDeserialzerFactory,
+  @Named("LiveQuery") private val logger: Logger,
 ) : AutoCloseable {
-  private val logger =
-    Logger("LiveQuery").apply {
-      debug { "Created by ${parentLogger.nameWithId} " + "with key: $key" }
-    }
-
   private val coroutineScope =
     CoroutineScope(
-      SupervisorJob(dataConnect.coroutineScope.coroutineContext[Job]) +
-        dataConnect.nonBlockingDispatcher +
-        CoroutineName("LiveQuery[$operationName ${variables.toCompactString()}]")
+      SupervisorJob(parentCoroutineScope.coroutineContext[Job]) +
+        coroutineDispatcher +
+        CoroutineName("LiveQuery[${logger.nameWithId}]")
     )
 
   // The `dataDeserializers` list may be safely read concurrently from multiple threads, as it uses
@@ -147,7 +152,7 @@ internal class LiveQuery(
     val sequenceNumber = nextSequenceNumber()
 
     val executeQueryResult =
-      dataConnect.lazyGrpcClient.get().runCatching {
+      grpcClient.runCatching {
         logger.debug("Calling executeQuery() with requestId=$requestId")
         executeQuery(requestId = requestId, operationName = operationName, variables = variables)
       }
@@ -189,23 +194,15 @@ internal class LiveQuery(
         dataDeserializers
           .firstOrNull { it.dataDeserializer === dataDeserializer }
           ?.let { it as RegisteredDataDeserialzer<T> }
-          ?: Random.nextAlphanumericString(length = 10).let { registrationId ->
-            logger.debug {
-              "Registering data deserializer $dataDeserializer " +
-                "with registrationId=$registrationId"
+          ?: run {
+            logger.debug { "Registering data deserializer $dataDeserializer" }
+            val registeredDataDeserialzer =
+              registeredDataDeserialzerFactory.newInstance(dataDeserializer)
+            dataDeserializers.add(registeredDataDeserialzer)
+            initialDataDeserializerUpdate.value.ref?.run {
+              registeredDataDeserialzer.update(requestId, sequencedResult)
             }
-            RegisteredDataDeserialzer(
-                dataConnect = dataConnect,
-                registrationId = registrationId,
-                dataDeserializer = dataDeserializer,
-                parentLogger = logger
-              )
-              .also {
-                dataDeserializers.add(it)
-                initialDataDeserializerUpdate.value.ref?.run {
-                  it.update(requestId, sequencedResult)
-                }
-              }
+            registeredDataDeserialzer
           }
       }
 
@@ -214,5 +211,9 @@ internal class LiveQuery(
   override fun close() {
     logger.debug("close() called")
     coroutineScope.cancel()
+  }
+
+  interface RegisteredDataDeserialzerFactory {
+    fun <T> newInstance(dataDeserializer: DeserializationStrategy<T>): RegisteredDataDeserialzer<T>
   }
 }
