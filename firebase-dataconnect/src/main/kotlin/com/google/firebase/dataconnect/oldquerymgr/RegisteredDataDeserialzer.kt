@@ -20,12 +20,10 @@ import com.google.firebase.dataconnect.core.DataConnectGrpcClient.OperationResul
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.deserialize
 import com.google.firebase.dataconnect.core.warn
-import com.google.firebase.dataconnect.di.Blocking
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SequencedReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import com.google.firebase.dataconnect.util.mapSuspending
-import javax.inject.Named
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,14 +31,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
-import me.tatarka.inject.annotations.Assisted
-import me.tatarka.inject.annotations.Inject
 
-@Inject
 internal class RegisteredDataDeserialzer<T>(
-  @Assisted val dataDeserializer: DeserializationStrategy<T>,
-  @Blocking private val coroutineDispatcher: CoroutineDispatcher,
-  @Named("RegisteredDataDeserialzer") private val logger: Logger,
+  val dataDeserializer: DeserializationStrategy<T>,
+  private val blockingCoroutineDispatcher: CoroutineDispatcher,
+  private val logger: Logger,
 ) {
   // A flow that emits a value every time that there is an update, either a successful or an
   // unsuccessful update. There is no replay cache in this shared flow because there is no way to
@@ -126,7 +121,7 @@ internal class RegisteredDataDeserialzer<T>(
     sequencedResult: SequencedReference<Result<OperationResult>>
   ): SuspendingLazy<Result<T>> = SuspendingLazy {
     sequencedResult.ref
-      .mapCatching { withContext(coroutineDispatcher) { it.deserialize(dataDeserializer) } }
+      .mapCatching { withContext(blockingCoroutineDispatcher) { it.deserialize(dataDeserializer) } }
       .onFailure {
         // If the overall result was successful then the failure _must_ have occurred during
         // deserialization. Log the deserialization failure so it doesn't go unnoticed.

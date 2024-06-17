@@ -16,27 +16,21 @@
 
 package com.google.firebase.dataconnect.core
 
-import com.google.firebase.dataconnect.ConnectorConfig
-import com.google.firebase.dataconnect.di.AndroidVersion
-import com.google.firebase.dataconnect.di.DataConnectSdkVersion
-import com.google.firebase.dataconnect.di.GrpcVersion
-import com.google.firebase.dataconnect.di.KotlinStdlibVersion
 import com.google.firebase.dataconnect.util.buildStructProto
 import com.google.protobuf.Struct
 import io.grpc.Metadata
-import me.tatarka.inject.annotations.Inject
 
-@Inject
 internal class DataConnectGrpcMetadata(
-  private val dataConnectAuth: DataConnectAuth,
-  connectorConfig: ConnectorConfig,
-  @KotlinStdlibVersion private val kotlinVersion: String,
-  @AndroidVersion private val androidVersion: Int,
-  @DataConnectSdkVersion private val dataConnectSdkVersion: String,
-  @GrpcVersion private val grpcVersion: String,
+  val dataConnectAuth: DataConnectAuth,
+  val connectorLocation: String,
+  val kotlinVersion: String,
+  val androidVersion: Int,
+  val dataConnectSdkVersion: String,
+  val grpcVersion: String,
+  val instanceId: String,
 ) {
   @Suppress("SpellCheckingInspection")
-  private val googRequestParamsHeaderValue = "location=${connectorConfig.location}&frontend=data"
+  private val googRequestParamsHeaderValue = "location=${connectorLocation}&frontend=data"
 
   @Suppress("SpellCheckingInspection")
   private val googApiClientHeaderValue =

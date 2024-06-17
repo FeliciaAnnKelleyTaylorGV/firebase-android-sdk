@@ -17,70 +17,130 @@
 package com.google.firebase.dataconnect.di
 
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient
+import com.google.firebase.dataconnect.core.DataConnectGrpcMetadata
+import com.google.firebase.dataconnect.core.DataConnectGrpcRPCs
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
 import com.google.firebase.dataconnect.oldquerymgr.LiveQueries
 import com.google.firebase.dataconnect.oldquerymgr.LiveQuery
 import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import com.google.protobuf.Struct
-import javax.inject.Named
-import kotlin.annotation.AnnotationTarget.CLASS
-import kotlin.annotation.AnnotationTarget.FUNCTION
-import kotlin.annotation.AnnotationTarget.PROPERTY
-import kotlin.annotation.AnnotationTarget.PROPERTY_GETTER
-import me.tatarka.inject.annotations.Component
-import me.tatarka.inject.annotations.Provides
-import me.tatarka.inject.annotations.Scope
 
-@Scope
-@Target(CLASS, FUNCTION, PROPERTY_GETTER, PROPERTY)
-internal annotation class DataConnectConfiguredScope
-
-@Suppress("unused")
-@Component
-@DataConnectConfiguredScope
-internal abstract class DataConnectConfiguredComponent(
-  @Component val dataConnectComponent: DataConnectComponent,
-  @get:Provides @get:DataConnectHost val dataConnectHost: String,
-  @get:Provides @get:DataConnectSslEnabled val dataConnectSslEnabled: Boolean,
-  private val parentLogger: Logger
+@Suppress("MemberVisibilityCanBePrivate")
+internal class DataConnectConfiguredComponent(
+  val dataConnectComponent: DataConnectComponent,
+  val dataConnectHost: String,
+  val dataConnectSslEnabled: Boolean,
+  private val parentLoggerId: String,
 ) {
-  @DataConnectConfiguredScope abstract val dataConnectGrpcClient: DataConnectGrpcClient
-  @DataConnectConfiguredScope abstract val queryManager: OldQueryManager
+  val dataConnectGrpcMetadata: DataConnectGrpcMetadata = run {
+    val logger = Logger("DataConnectGrpcMetadata")
+    DataConnectGrpcMetadata(
+        dataConnectAuth = dataConnectComponent.dataConnectAuth,
+        connectorLocation = dataConnectComponent.connectorConfig.location,
+        kotlinVersion = dataConnectComponent.kotlinVersion,
+        androidVersion = dataConnectComponent.androidVersion,
+        dataConnectSdkVersion = dataConnectComponent.dataConnectSdkVersion,
+        grpcVersion = dataConnectComponent.grpcVersion,
+        instanceId = logger.nameWithId,
+      )
+      .apply {
+        logger.debug {
+          "created by $parentLoggerId with " + " dataConnectAuth=${dataConnectAuth.instanceId} "
+          " connectorLocation=$connectorLocation" +
+            " kotlinVersion=$kotlinVersion" +
+            " androidVersion=$androidVersion" +
+            " dataConnectSdkVersion=$dataConnectSdkVersion" +
+            " grpcVersion=$grpcVersion"
+        }
+      }
+  }
 
-  @Provides
-  @Named("DataConnectGrpcClient")
-  fun loggerDataConnectGrpcClient(): Logger =
-    Logger("DataConnectGrpcClient").apply { debug { "Created by ${parentLogger.nameWithId}" } }
+  val dataConnectGrpcRPCs: DataConnectGrpcRPCs = run {
+    val context = dataConnectComponent.context
+    val host = dataConnectHost
+    val sslEnabled = dataConnectSslEnabled
+    val blockingCoroutineDispatcher = dataConnectComponent.blockingCoroutineDispatcher
+    val dataConnectGrpcMetadata = dataConnectGrpcMetadata
+    val logger = Logger("DataConnectGrpcRPCs")
 
-  @Provides
-  @Named("DataConnectGrpcRPCs")
-  fun loggerDataConnectGrpcRPCs(): Logger =
-    Logger("DataConnectGrpcRPCs").apply { debug { "Created by ${parentLogger.nameWithId}" } }
+    DataConnectGrpcRPCs(
+        context = context,
+        host = host,
+        sslEnabled = sslEnabled,
+        blockingCoroutineDispatcher = blockingCoroutineDispatcher,
+        dataConnectGrpcMetadata = dataConnectGrpcMetadata,
+        logger = logger,
+      )
+      .apply {
+        logger.debug {
+          "created by $parentLoggerId with " +
+            " host=$host" +
+            " sslEnabled=$sslEnabled" +
+            " dataConnectGrpcMetadata=${dataConnectGrpcMetadata.instanceId}"
+        }
+      }
+  }
 
-  @Provides
-  @Named("LiveQueries")
-  fun loggerLiveQueries(): Logger =
-    Logger("LiveQueries").apply { debug { "Created by ${parentLogger.nameWithId}" } }
+  val dataConnectGrpcClient: DataConnectGrpcClient = run {
+    val projectId = dataConnectComponent.projectId
+    val connectorConfig = dataConnectComponent.connectorConfig
+    val dataConnectGrpcRPCs = dataConnectGrpcRPCs
+    val logger = Logger("DataConnectGrpcClient")
 
-  @Provides
-  fun liveQueryFactory(): LiveQueries.LiveQueryFactory =
-    object : LiveQueries.LiveQueryFactory {
-      override fun newLiveQuery(
-        key: LiveQuery.Key,
-        operationName: String,
-        variables: Struct,
-        parentLogger: Logger,
-      ): LiveQuery =
-        LiveQueryComponent.create(
-            this@DataConnectConfiguredComponent,
-            key,
-            operationName,
-            variables,
-            parentLogger
-          )
-          .liveQuery
-    }
+    DataConnectGrpcClient(
+        projectId = projectId,
+        connectorConfig = connectorConfig,
+        dataConnectGrpcRPCs = dataConnectGrpcRPCs,
+        logger = logger,
+      )
+      .apply {
+        logger.debug {
+          "created by $parentLoggerId with "
+          " projectId=$projectId" +
+            " connectorConfig=$connectorConfig" +
+            " dataConnectGrpcRPCs=${dataConnectGrpcRPCs.instanceId}"
+        }
+      }
+  }
 
-  companion object
+  val liveQueries: LiveQueries = run {
+    val logger = Logger("LiveQueries")
+    LiveQueries(
+        liveQueryFactory = LiveQueryFactoryImpl(logger.nameWithId),
+        logger = logger,
+      )
+      .apply { logger.debug { "created by $parentLoggerId" } }
+  }
+
+  val queryManager: OldQueryManager = run {
+    val liveQueries = liveQueries
+    val logger = Logger("OldQueryManager")
+
+    OldQueryManager(
+        liveQueries = liveQueries,
+        instanceId = logger.nameWithId,
+      )
+      .apply {
+        logger.debug { "created by $parentLoggerId with liveQueries=${liveQueries.instanceId}" }
+      }
+  }
+
+  inner class LiveQueryFactoryImpl(private val parentLoggerId: String) :
+    LiveQueries.LiveQueryFactory {
+    override fun newLiveQuery(
+      key: LiveQuery.Key,
+      operationName: String,
+      variables: Struct,
+      parentLogger: Logger,
+    ): LiveQuery =
+      LiveQueryComponent(
+          dataConnectConfiguredComponent = this@DataConnectConfiguredComponent,
+          key = key,
+          operationName = operationName,
+          variables = variables,
+          parentLoggerId = parentLoggerId,
+        )
+        .liveQuery
+  }
 }

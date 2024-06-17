@@ -19,9 +19,6 @@ package com.google.firebase.dataconnect.core
 import android.content.Context
 import com.google.android.gms.security.ProviderInstaller
 import com.google.firebase.dataconnect.core.DataConnectGrpcMetadata.Companion.toStructProto
-import com.google.firebase.dataconnect.di.Blocking
-import com.google.firebase.dataconnect.di.DataConnectHost
-import com.google.firebase.dataconnect.di.DataConnectSslEnabled
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import com.google.firebase.dataconnect.util.buildStructProto
 import com.google.firebase.dataconnect.util.toCompactString
@@ -38,33 +35,29 @@ import io.grpc.Metadata
 import io.grpc.MethodDescriptor
 import io.grpc.android.AndroidChannelBuilder
 import java.util.concurrent.TimeUnit
-import javax.inject.Named
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import me.tatarka.inject.annotations.Inject
 
-@Inject
 internal class DataConnectGrpcRPCs(
   context: Context,
-  @DataConnectHost host: String,
-  @DataConnectSslEnabled sslEnabled: Boolean,
-  @Blocking private val coroutineDispatcher: CoroutineDispatcher,
+  host: String,
+  sslEnabled: Boolean,
+  private val blockingCoroutineDispatcher: CoroutineDispatcher,
   private val dataConnectGrpcMetadata: DataConnectGrpcMetadata,
-  @Named("DataConnectGrpcRPCs") private val logger: Logger,
+  private val logger: Logger,
 ) {
-  init {
-    logger.debug { "host=$host sslEnabled=$sslEnabled" }
-  }
+  val instanceId: String
+    get() = logger.nameWithId
 
   private val mutex = Mutex()
   private var closed = false
 
   // Use the non-main-thread CoroutineDispatcher to avoid blocking operations on the main thread.
   private val lazyGrpcChannel =
-    SuspendingLazy(mutex = mutex, coroutineContext = coroutineDispatcher) {
+    SuspendingLazy(mutex = mutex, coroutineContext = blockingCoroutineDispatcher) {
       check(!closed) { "DataConnectGrpcRPCs ${logger.nameWithId} instance has been closed" }
       logger.debug { "Creating GRPC ManagedChannel for host=$host sslEnabled=$sslEnabled" }
 
@@ -93,7 +86,7 @@ internal class DataConnectGrpcRPCs(
           // failsafe.
           it.keepAliveTime(30, TimeUnit.SECONDS)
 
-          it.executor(coroutineDispatcher.asExecutor())
+          it.executor(blockingCoroutineDispatcher.asExecutor())
 
           // Wrap the `ManagedChannelBuilder` in an `AndroidChannelBuilder`. This allows the channel
           // to respond more gracefully to network change events, such as switching from cellular to
@@ -189,7 +182,7 @@ internal class DataConnectGrpcRPCs(
 
     // Avoid blocking the calling thread by running potentially-blocking code on the dispatcher
     // given to the constructor, which should have similar semantics to [Dispatchers.IO].
-    withContext(coroutineDispatcher) {
+    withContext(blockingCoroutineDispatcher) {
       grpcChannel.shutdownNow()
       grpcChannel.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS)
     }

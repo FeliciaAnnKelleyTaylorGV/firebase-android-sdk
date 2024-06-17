@@ -19,14 +19,14 @@ package com.google.firebase.dataconnect.core
 import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.internal.InternalAuthProvider
-import com.google.firebase.dataconnect.*
+import com.google.firebase.dataconnect.ConnectorConfig
+import com.google.firebase.dataconnect.DataConnectSettings
+import com.google.firebase.dataconnect.FirebaseDataConnect
 import com.google.firebase.dataconnect.di.DataConnectComponent
-import com.google.firebase.dataconnect.di.create
 import com.google.firebase.inject.Deferred
 import java.util.concurrent.Executor
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlinx.coroutines.asCoroutineDispatcher
 
 internal class FirebaseDataConnectFactory(
   private val context: Context,
@@ -75,18 +75,18 @@ internal class FirebaseDataConnectFactory(
     config: ConnectorConfig,
     settings: DataConnectSettings?
   ): FirebaseDataConnect =
-    DataConnectComponent.create(
+    DataConnectComponent(
         creator = this@FirebaseDataConnectFactory,
         context = context,
         firebaseApp = firebaseApp,
         projectId = firebaseApp.options.projectId ?: "<unspecified project ID>",
         dataConnectSettings = settings ?: DataConnectSettings(),
         connectorConfig = config,
-        blockingCoroutineDispatcher = blockingExecutor.asCoroutineDispatcher(),
-        nonBlockingCoroutineDispatcher = nonBlockingExecutor.asCoroutineDispatcher(),
+        blockingExecutor = blockingExecutor,
+        nonBlockingExecutor = nonBlockingExecutor,
         deferredAuthProvider = deferredAuthProvider,
       )
-      .dataConnect()
+      .dataConnect
 
   fun remove(instance: FirebaseDataConnect) {
     lock.withLock {

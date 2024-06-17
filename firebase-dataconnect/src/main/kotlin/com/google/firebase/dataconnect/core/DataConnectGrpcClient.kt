@@ -17,8 +17,6 @@
 package com.google.firebase.dataconnect.core
 
 import com.google.firebase.dataconnect.*
-import com.google.firebase.dataconnect.di.DataConnectConfiguredScope
-import com.google.firebase.dataconnect.di.ProjectId
 import com.google.firebase.dataconnect.util.decodeFromStruct
 import com.google.firebase.dataconnect.util.toMap
 import com.google.protobuf.ListValue
@@ -28,22 +26,16 @@ import google.firebase.dataconnect.proto.GraphqlError
 import google.firebase.dataconnect.proto.SourceLocation
 import google.firebase.dataconnect.proto.executeMutationRequest
 import google.firebase.dataconnect.proto.executeQueryRequest
-import javax.inject.Inject
-import javax.inject.Named
 import kotlinx.serialization.DeserializationStrategy
 
-@DataConnectConfiguredScope
-internal class DataConnectGrpcClient
-@Inject
-constructor(
-  @ProjectId projectId: String,
+internal class DataConnectGrpcClient(
+  projectId: String,
   connectorConfig: ConnectorConfig,
   private val dataConnectGrpcRPCs: DataConnectGrpcRPCs,
-  @Named("DataConnectGrpcClient") private val logger: Logger,
+  private val logger: Logger,
 ) {
-  init {
-    logger.debug { "projectId=$projectId connectorConfig=$connectorConfig" }
-  }
+  val instanceId: String
+    get() = logger.nameWithId
 
   private val requestName =
     "projects/$projectId/" +

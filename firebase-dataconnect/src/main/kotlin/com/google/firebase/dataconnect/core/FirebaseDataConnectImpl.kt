@@ -17,22 +17,29 @@
 package com.google.firebase.dataconnect.core
 
 import com.google.firebase.FirebaseApp
-import com.google.firebase.dataconnect.*
-import com.google.firebase.dataconnect.di.Blocking
-import com.google.firebase.dataconnect.di.DataConnectScope
-import com.google.firebase.dataconnect.di.NonBlocking
-import com.google.firebase.dataconnect.di.ProjectId
+import com.google.firebase.dataconnect.ConnectorConfig
+import com.google.firebase.dataconnect.DataConnectSettings
+import com.google.firebase.dataconnect.FirebaseDataConnect
+import com.google.firebase.dataconnect.isDefaultHost
 import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
 import java.util.concurrent.Executor
-import javax.inject.Named
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.*
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
-import me.tatarka.inject.annotations.Inject
 
 internal interface FirebaseDataConnectInternal : FirebaseDataConnect {
   val logger: Logger
@@ -51,20 +58,18 @@ internal interface FirebaseDataConnectInternal : FirebaseDataConnect {
   }
 }
 
-@Inject
-@DataConnectScope
 internal class FirebaseDataConnectImpl(
   override val app: FirebaseApp,
-  @ProjectId private val projectId: String,
+  private val projectId: String,
   override val config: ConnectorConfig,
   private val dataConnectAuth: DataConnectAuth,
-  @Blocking override val blockingExecutor: Executor,
-  @NonBlocking override val nonBlockingExecutor: Executor,
+  override val blockingExecutor: Executor,
+  override val nonBlockingExecutor: Executor,
   private val configuredComponentsFactory: ConfiguredComponentsFactory,
   private val creator: FirebaseDataConnectFactory,
   override val settings: DataConnectSettings,
   override val coroutineScope: CoroutineScope,
-  @Named("FirebaseDataConnectImpl") override val logger: Logger,
+  override val logger: Logger,
 ) : FirebaseDataConnectInternal {
   override val blockingDispatcher = blockingExecutor.asCoroutineDispatcher()
   override val nonBlockingDispatcher = nonBlockingExecutor.asCoroutineDispatcher()

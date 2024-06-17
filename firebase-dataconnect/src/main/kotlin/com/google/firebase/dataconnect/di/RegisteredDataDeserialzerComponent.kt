@@ -19,38 +19,27 @@ package com.google.firebase.dataconnect.di
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
 import com.google.firebase.dataconnect.oldquerymgr.RegisteredDataDeserialzer
-import javax.inject.Named
-import kotlin.annotation.AnnotationTarget.CLASS
-import kotlin.annotation.AnnotationTarget.FUNCTION
-import kotlin.annotation.AnnotationTarget.PROPERTY
-import kotlin.annotation.AnnotationTarget.PROPERTY_GETTER
 import kotlinx.serialization.DeserializationStrategy
-import me.tatarka.inject.annotations.Component
-import me.tatarka.inject.annotations.Provides
-import me.tatarka.inject.annotations.Scope
 
-@Scope
-@Target(CLASS, FUNCTION, PROPERTY_GETTER, PROPERTY)
-internal annotation class RegisteredDataDeserialzerScope
-
-@Suppress("unused")
-@Component
-@RegisteredDataDeserialzerScope
-internal abstract class RegisteredDataDeserialzerComponent(
-  @Component val liveQueryComponent: LiveQueryComponent,
-  @get:Provides val dataDeserializer: DeserializationStrategy<*>,
-  private val parentLogger: Logger
+internal class RegisteredDataDeserialzerComponent<T>(
+  val liveQueryComponent: LiveQueryComponent,
+  val dataDeserializer: DeserializationStrategy<T>,
+  private val parentLoggerId: String,
 ) {
-  @RegisteredDataDeserialzerScope
-  abstract val registeredDataDeserialzer: RegisteredDataDeserialzer<*>
+  val registeredDataDeserialzer: RegisteredDataDeserialzer<T> = run {
+    val dataDeserializer = dataDeserializer
+    val blockingCoroutineDispatcher =
+      liveQueryComponent.dataConnectConfiguredComponent.dataConnectComponent
+        .blockingCoroutineDispatcher
+    val logger = Logger("RegisteredDataDeserialzer")
 
-  @Provides
-  @Named("RegisteredDataDeserialzer")
-  fun loggerRegisteredDataDeserialzer(): Logger =
-    Logger("RegisteredDataDeserialzer").apply {
-      debug { "Created by ${parentLogger.nameWithId}" }
-      debug { "dataDeserializer=$dataDeserializer" }
-    }
-
-  companion object
+    RegisteredDataDeserialzer(
+        dataDeserializer = dataDeserializer,
+        blockingCoroutineDispatcher = blockingCoroutineDispatcher,
+        logger = logger,
+      )
+      .apply {
+        logger.debug { "created by $parentLoggerId with dataDeserializer=$dataDeserializer" }
+      }
+  }
 }

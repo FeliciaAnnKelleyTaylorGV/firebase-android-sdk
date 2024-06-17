@@ -17,13 +17,12 @@
 package com.google.firebase.dataconnect.oldquerymgr
 
 import com.google.firebase.dataconnect.QueryRef
-import com.google.firebase.dataconnect.di.DataConnectConfiguredScope
 import com.google.firebase.dataconnect.util.SequencedReference
-import me.tatarka.inject.annotations.Inject
 
-@Inject
-@DataConnectConfiguredScope
-internal class OldQueryManager(private val liveQueries: LiveQueries) {
+internal class OldQueryManager(
+  private val liveQueries: LiveQueries,
+  val instanceId: String,
+) {
   suspend fun <Data, Variables> execute(
     query: QueryRef<Data, Variables>
   ): SequencedReference<Result<Data>> =

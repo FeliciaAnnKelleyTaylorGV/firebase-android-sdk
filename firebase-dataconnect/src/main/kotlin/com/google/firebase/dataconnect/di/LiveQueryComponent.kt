@@ -20,49 +20,58 @@ import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
 import com.google.firebase.dataconnect.oldquerymgr.LiveQuery
 import com.google.firebase.dataconnect.oldquerymgr.RegisteredDataDeserialzer
-import com.google.firebase.dataconnect.util.toCompactString
 import com.google.protobuf.Struct
-import javax.inject.Named
-import kotlin.annotation.AnnotationTarget.CLASS
-import kotlin.annotation.AnnotationTarget.FUNCTION
-import kotlin.annotation.AnnotationTarget.PROPERTY
-import kotlin.annotation.AnnotationTarget.PROPERTY_GETTER
 import kotlinx.serialization.DeserializationStrategy
-import me.tatarka.inject.annotations.Component
-import me.tatarka.inject.annotations.Provides
-import me.tatarka.inject.annotations.Scope
 
-@Scope @Target(CLASS, FUNCTION, PROPERTY_GETTER, PROPERTY) internal annotation class LiveQueryScope
-
-@Suppress("unused")
-@Component
-@LiveQueryScope
-internal abstract class LiveQueryComponent(
-  @Component val dataConnectConfiguredComponent: DataConnectConfiguredComponent,
-  @get:Provides val key: LiveQuery.Key,
-  @get:Provides @get:OperationName val operationName: String,
-  @get:Provides val variables: Struct,
-  private val parentLogger: Logger
+internal class LiveQueryComponent(
+  val dataConnectConfiguredComponent: DataConnectConfiguredComponent,
+  val key: LiveQuery.Key,
+  val operationName: String,
+  val variables: Struct,
+  private val parentLoggerId: String
 ) {
-  @LiveQueryScope abstract val liveQuery: LiveQuery
+  val liveQuery: LiveQuery = run {
+    val key = key
+    val operationName = operationName
+    val variables = variables
+    val parentCoroutineScope = dataConnectConfiguredComponent.dataConnectComponent.coroutineScope
+    val nonBlockingCoroutineDispatcher =
+      dataConnectConfiguredComponent.dataConnectComponent.nonBlockingCoroutineDispatcher
+    val grpcClient = dataConnectConfiguredComponent.dataConnectGrpcClient
+    val logger = Logger("LiveQuery")
+    val registeredDataDeserialzerFactory =
+      RegisteredDataDeserialzerFactoryImpl(parentLoggerId = logger.nameWithId)
 
-  @Provides
-  @Named("LiveQuery")
-  fun loggerLiveQuery(): Logger =
-    Logger("LiveQuery").apply {
-      debug { "Created by ${parentLogger.nameWithId}" }
-      debug { "operationName=$operationName key=$key variables=${variables.toCompactString()}" }
-    }
-
-  @Provides
-  fun registeredDataDeserialzerFactory(): LiveQuery.RegisteredDataDeserialzerFactory =
-    object : LiveQuery.RegisteredDataDeserialzerFactory {
-      override fun <T> newInstance(
-        dataDeserializer: DeserializationStrategy<T>
-      ): RegisteredDataDeserialzer<T> {
-        RegisteredDataDeserialzerComponent.create()
+    LiveQuery(
+        key = key,
+        operationName = operationName,
+        variables = variables,
+        parentCoroutineScope = parentCoroutineScope,
+        nonBlockingCoroutineDispatcher = nonBlockingCoroutineDispatcher,
+        grpcClient = grpcClient,
+        registeredDataDeserialzerFactory = registeredDataDeserialzerFactory,
+        logger = logger,
+      )
+      .apply {
+        logger.debug {
+          "created by $parentLoggerId with " +
+            " operationName=$operationName" +
+            " variables=$variables" +
+            " grpcClient=${grpcClient.instanceId}"
+        }
       }
-    }
+  }
 
-  companion object
+  private inner class RegisteredDataDeserialzerFactoryImpl(val parentLoggerId: String) :
+    LiveQuery.RegisteredDataDeserialzerFactory {
+    override fun <T> newInstance(
+      dataDeserializer: DeserializationStrategy<T>
+    ): RegisteredDataDeserialzer<T> =
+      RegisteredDataDeserialzerComponent(
+          liveQueryComponent = this@LiveQueryComponent,
+          dataDeserializer = dataDeserializer,
+          parentLoggerId = parentLoggerId,
+        )
+        .registeredDataDeserialzer
+  }
 }

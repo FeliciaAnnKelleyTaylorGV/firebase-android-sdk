@@ -20,9 +20,6 @@ import com.google.firebase.dataconnect.core.DataConnectGrpcClient
 import com.google.firebase.dataconnect.core.DataConnectGrpcClient.OperationResult
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
-import com.google.firebase.dataconnect.di.LiveQueryScope
-import com.google.firebase.dataconnect.di.NonBlocking
-import com.google.firebase.dataconnect.di.OperationName
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SequencedReference
 import com.google.firebase.dataconnect.util.map
@@ -30,7 +27,6 @@ import com.google.firebase.dataconnect.util.nextSequenceNumber
 import com.google.firebase.util.nextAlphanumericString
 import com.google.protobuf.Struct
 import java.util.concurrent.CopyOnWriteArrayList
-import javax.inject.Named
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineName
@@ -44,24 +40,24 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.DeserializationStrategy
-import me.tatarka.inject.annotations.Inject
 
-@Inject
-@LiveQueryScope
 internal class LiveQuery(
   val key: Key,
-  @OperationName private val operationName: String,
+  private val operationName: String,
   private val variables: Struct,
   parentCoroutineScope: CoroutineScope,
-  @NonBlocking private val coroutineDispatcher: CoroutineDispatcher,
+  private val nonBlockingCoroutineDispatcher: CoroutineDispatcher,
   private val grpcClient: DataConnectGrpcClient,
   private val registeredDataDeserialzerFactory: RegisteredDataDeserialzerFactory,
-  @Named("LiveQuery") private val logger: Logger,
+  private val logger: Logger,
 ) : AutoCloseable {
+  val instanceId: String
+    get() = logger.nameWithId
+
   private val coroutineScope =
     CoroutineScope(
       SupervisorJob(parentCoroutineScope.coroutineContext[Job]) +
-        coroutineDispatcher +
+        nonBlockingCoroutineDispatcher +
         CoroutineName("LiveQuery[${logger.nameWithId}]")
     )
 

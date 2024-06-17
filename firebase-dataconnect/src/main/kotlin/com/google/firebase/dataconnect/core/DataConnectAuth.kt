@@ -18,26 +18,23 @@ package com.google.firebase.dataconnect.core
 
 import com.google.firebase.auth.internal.IdTokenListener
 import com.google.firebase.auth.internal.InternalAuthProvider
-import com.google.firebase.dataconnect.di.Blocking
-import com.google.firebase.dataconnect.di.DataConnectScope
 import com.google.firebase.dataconnect.util.nextSequenceNumber
 import com.google.firebase.internal.InternalTokenResult
 import com.google.firebase.internal.api.FirebaseNoSignedInUserException
 import java.util.concurrent.Executor
-import javax.inject.Named
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
-import me.tatarka.inject.annotations.Inject
 
-@Inject
-@DataConnectScope
 internal class DataConnectAuth(
   deferredAuthProvider: com.google.firebase.inject.Deferred<InternalAuthProvider>,
-  @Blocking blockingExecutor: Executor,
-  @Named("DataConnectAuth") private val logger: Logger,
+  blockingExecutor: Executor,
+  private val logger: Logger,
 ) {
+  val instanceId: String
+    get() = logger.nameWithId
+
   private val idTokenListener = IdTokenListener { runBlocking { onIdTokenChanged(it) } }
 
   private val mutex = Mutex()
