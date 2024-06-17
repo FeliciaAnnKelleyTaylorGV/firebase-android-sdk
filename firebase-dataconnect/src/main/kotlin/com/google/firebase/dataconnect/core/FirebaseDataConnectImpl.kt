@@ -22,7 +22,6 @@ import com.google.firebase.dataconnect.DataConnectSettings
 import com.google.firebase.dataconnect.FirebaseDataConnect
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -32,8 +31,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
 
@@ -49,12 +46,6 @@ internal class FirebaseDataConnectImpl(
   private val coroutineScope: CoroutineScope,
   private val logger: Logger,
 ) : FirebaseDataConnect {
-  // Protects `closed`, `grpcClient`, `emulatorSettings`, and `queryManager`.
-  private val mutex = Mutex()
-
-  // All accesses to this variable _must_ have locked `mutex`.
-  private var closed = false
-
   override fun useEmulator(host: String, port: Int): Unit = runBlocking {
     logger.debug { "useEmulator(host=$host, port=$port)" }
     dataConnectServerInfo.useEmulator(host, port)
@@ -101,18 +92,14 @@ internal class FirebaseDataConnectImpl(
   }
 
   private suspend fun nonBlockingClose(): Deferred<Unit> {
-    coroutineScope.cancel()
-
     // Remove the reference to this `FirebaseDataConnect` instance from the
     // `FirebaseDataConnectFactory` that created it, so that the next time that `getInstance()` is
     // called with the same arguments that a new instance of `FirebaseDataConnect` will be created.
     creator.remove(this)
 
-    mutex.withLock { closed = true }
+    coroutineScope.cancel()
 
-    // Close Auth synchronously to avoid race conditions with auth callbacks. Since close()
-    // is re-entrant, this is safe even if it's already been closed.
-    dataConnectAuth.close()
+    dataConnectServerInfo.close()
 
     // Start the job to asynchronously close the gRPC client.
     while (true) {
@@ -127,6 +114,7 @@ internal class FirebaseDataConnectImpl(
       @OptIn(DelicateCoroutinesApi::class)
       val newCloseJob =
         GlobalScope.async<Unit>(start = CoroutineStart.LAZY) {
+          dataConnectAuth.close()
           grpcClient.initializedValueOrNull?.close()
         }
 
@@ -153,79 +141,4 @@ internal class FirebaseDataConnectImpl(
 
   override fun toString(): String =
     "FirebaseDataConnect(app=${app.name}, projectId=$projectId, config=$config, settings=$settings)"
-}
-
-internal class DataConnectServerInfo(dataConnectSettings: DataConnectSettings) : AutoCloseable {
-  private val emulatorInfo =
-    AtomicReference<EmulatorInfo>(
-      EmulatorInfo.Initialized(
-        host = dataConnectSettings.host,
-        sslEnabled = dataConnectSettings.sslEnabled,
-        isEmulator = false,
-      )
-    )
-
-  val host: String
-    get() = freeze().values.host
-  val sslEnabled: Boolean
-    get() = freeze().values.sslEnabled
-  val isEmulator: Boolean
-    get() = freeze().values.isEmulator
-
-  fun useEmulator(host: String, port: Int) {
-    val newEmulatorInfo =
-      EmulatorInfo.Initialized(host = "$host:$port", sslEnabled = false, isEmulator = true)
-    while (true) {
-      when (val oldEmulatorInfo = emulatorInfo.get()) {
-        is EmulatorInfo.Closed ->
-          throw IllegalStateException("cannot configure data connect emulator after close")
-        is EmulatorInfo.Frozen ->
-          throw IllegalStateException(
-            "cannot configure data connect emulator after the initial use of a QueryRef or MutationRef"
-          )
-        is EmulatorInfo.Initialized -> {
-          if (emulatorInfo.compareAndSet(oldEmulatorInfo, newEmulatorInfo)) {
-            return
-          }
-        }
-      }
-    }
-  }
-
-  override fun close() {
-    while (true) {
-      val oldEmulatorInfo: EmulatorInfo.Frozen =
-        when (val oldEmulatorInfo = emulatorInfo.get()) {
-          is EmulatorInfo.Closed -> return
-          is EmulatorInfo.Frozen -> oldEmulatorInfo
-          is EmulatorInfo.Initialized -> EmulatorInfo.Frozen(oldEmulatorInfo)
-        }
-      val newEmulatorInfo = EmulatorInfo.Closed(oldEmulatorInfo)
-      if (emulatorInfo.compareAndSet(oldEmulatorInfo, newEmulatorInfo)) {
-        return
-      }
-    }
-  }
-
-  private fun freeze(): EmulatorInfo.Frozen {
-    while (true) {
-      when (val oldEmulatorInfo = emulatorInfo.get()) {
-        is EmulatorInfo.Frozen -> return oldEmulatorInfo
-        is EmulatorInfo.Closed -> return oldEmulatorInfo.frozenEmulatorInfo
-        is EmulatorInfo.Initialized -> {
-          val newEmulatorInfo = EmulatorInfo.Frozen(oldEmulatorInfo)
-          if (emulatorInfo.compareAndSet(oldEmulatorInfo, newEmulatorInfo)) {
-            return newEmulatorInfo
-          }
-        }
-      }
-    }
-  }
-
-  private sealed interface EmulatorInfo {
-    data class Initialized(val host: String, val sslEnabled: Boolean, val isEmulator: Boolean) :
-      EmulatorInfo
-    data class Frozen(val values: Initialized) : EmulatorInfo
-    class Closed(val frozenEmulatorInfo: Frozen) : EmulatorInfo
-  }
 }

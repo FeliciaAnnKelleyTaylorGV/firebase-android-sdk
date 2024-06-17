@@ -93,8 +93,6 @@ internal class DataConnectComponent(
       projectId = projectId,
       config = connectorConfig,
       dataConnectAuth = dataConnectAuth,
-      blockingExecutor = blockingExecutor,
-      nonBlockingExecutor = nonBlockingExecutor,
       dataConnectServerInfo = dataConnectServerInfo,
       creator = creator,
       settings = dataConnectSettings,
