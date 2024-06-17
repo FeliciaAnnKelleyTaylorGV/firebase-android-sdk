@@ -20,18 +20,14 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.dataconnect.ConnectorConfig
 import com.google.firebase.dataconnect.DataConnectSettings
 import com.google.firebase.dataconnect.FirebaseDataConnect
-import com.google.firebase.dataconnect.isDefaultHost
-import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SuspendingLazy
-import java.util.concurrent.Executor
-import kotlinx.coroutines.CoroutineDispatcher
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,103 +37,27 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
 
-internal interface FirebaseDataConnectInternal : FirebaseDataConnect {
-  val logger: Logger
-
-  val coroutineScope: CoroutineScope
-  val blockingExecutor: Executor
-  val blockingDispatcher: CoroutineDispatcher
-  val nonBlockingExecutor: Executor
-  val nonBlockingDispatcher: CoroutineDispatcher
-
-  val lazyConfiguredComponents: SuspendingLazy<ConfiguredComponents>
-
-  interface ConfiguredComponents {
-    val grpcClient: DataConnectGrpcClient
-    val queryManager: OldQueryManager
-  }
-}
-
 internal class FirebaseDataConnectImpl(
   override val app: FirebaseApp,
   private val projectId: String,
   override val config: ConnectorConfig,
   private val dataConnectAuth: DataConnectAuth,
-  override val blockingExecutor: Executor,
-  override val nonBlockingExecutor: Executor,
-  private val configuredComponentsFactory: ConfiguredComponentsFactory,
+  private val dataConnectServerInfo: DataConnectServerInfo,
+  private val grpcClient: SuspendingLazy<DataConnectGrpcClient>,
   private val creator: FirebaseDataConnectFactory,
   override val settings: DataConnectSettings,
-  override val coroutineScope: CoroutineScope,
-  override val logger: Logger,
-) : FirebaseDataConnectInternal {
-  override val blockingDispatcher = blockingExecutor.asCoroutineDispatcher()
-  override val nonBlockingDispatcher = nonBlockingExecutor.asCoroutineDispatcher()
-
+  private val coroutineScope: CoroutineScope,
+  private val logger: Logger,
+) : FirebaseDataConnect {
   // Protects `closed`, `grpcClient`, `emulatorSettings`, and `queryManager`.
   private val mutex = Mutex()
 
   // All accesses to this variable _must_ have locked `mutex`.
-  private var emulatorSettings: EmulatedServiceSettings? = null
-
-  // All accesses to this variable _must_ have locked `mutex`.
   private var closed = false
-
-  override val lazyConfiguredComponents =
-    SuspendingLazy(mutex) {
-      if (closed) throw IllegalStateException("FirebaseDataConnect instance has been closed")
-
-      data class DataConnectServerInfo(
-        val host: String,
-        val sslEnabled: Boolean,
-        val isEmulator: Boolean
-      )
-      val dataConnectServerInfoFromSettings =
-        DataConnectServerInfo(
-          host = settings.host,
-          sslEnabled = settings.sslEnabled,
-          isEmulator = false
-        )
-      val dataConnectServerInfoFromEmulatorSettings =
-        emulatorSettings?.run {
-          DataConnectServerInfo(host = "$host:$port", sslEnabled = false, isEmulator = true)
-        }
-
-      val dataConnectServerInfo =
-        if (dataConnectServerInfoFromEmulatorSettings == null) {
-          dataConnectServerInfoFromSettings
-        } else {
-          if (!settings.isDefaultHost()) {
-            logger.warn(
-              "Host has been set in DataConnectSettings and useEmulator, " +
-                "emulator host will be used."
-            )
-          }
-          dataConnectServerInfoFromEmulatorSettings
-        }
-
-      logger.debug { "Connecting to Data Connect server: $dataConnectServerInfo" }
-      val x =
-        dataConnectServerInfo.run {
-          configuredComponentsFactory.newConfiguredComponents(host = host, sslEnabled = sslEnabled)
-        }
-
-      val q1 = x.queryManager
-      val q2 = x.queryManager
-      println("zzyzx q1===q2: ${q1===q2}")
-      x
-    }
 
   override fun useEmulator(host: String, port: Int): Unit = runBlocking {
     logger.debug { "useEmulator(host=$host, port=$port)" }
-    mutex.withLock {
-      if (lazyConfiguredComponents.initializedValueOrNull != null) {
-        throw IllegalStateException(
-          "Cannot call useEmulator() after instance has already been initialized."
-        )
-      }
-      emulatorSettings = EmulatedServiceSettings(host = host, port = port)
-    }
+    dataConnectServerInfo.useEmulator(host, port)
   }
 
   override fun <Data, Variables> query(
@@ -207,7 +127,7 @@ internal class FirebaseDataConnectImpl(
       @OptIn(DelicateCoroutinesApi::class)
       val newCloseJob =
         GlobalScope.async<Unit>(start = CoroutineStart.LAZY) {
-          lazyConfiguredComponents.initializedValueOrNull?.grpcClient?.close()
+          grpcClient.initializedValueOrNull?.close()
         }
 
       newCloseJob.invokeOnCompletion { exception ->
@@ -233,13 +153,79 @@ internal class FirebaseDataConnectImpl(
 
   override fun toString(): String =
     "FirebaseDataConnect(app=${app.name}, projectId=$projectId, config=$config, settings=$settings)"
+}
 
-  private data class EmulatedServiceSettings(val host: String, val port: Int)
+internal class DataConnectServerInfo(dataConnectSettings: DataConnectSettings) : AutoCloseable {
+  private val emulatorInfo =
+    AtomicReference<EmulatorInfo>(
+      EmulatorInfo.Initialized(
+        host = dataConnectSettings.host,
+        sslEnabled = dataConnectSettings.sslEnabled,
+        isEmulator = false,
+      )
+    )
 
-  interface ConfiguredComponentsFactory {
-    fun newConfiguredComponents(
-      host: String,
-      sslEnabled: Boolean
-    ): FirebaseDataConnectInternal.ConfiguredComponents
+  val host: String
+    get() = freeze().values.host
+  val sslEnabled: Boolean
+    get() = freeze().values.sslEnabled
+  val isEmulator: Boolean
+    get() = freeze().values.isEmulator
+
+  fun useEmulator(host: String, port: Int) {
+    val newEmulatorInfo =
+      EmulatorInfo.Initialized(host = "$host:$port", sslEnabled = false, isEmulator = true)
+    while (true) {
+      when (val oldEmulatorInfo = emulatorInfo.get()) {
+        is EmulatorInfo.Closed ->
+          throw IllegalStateException("cannot configure data connect emulator after close")
+        is EmulatorInfo.Frozen ->
+          throw IllegalStateException(
+            "cannot configure data connect emulator after the initial use of a QueryRef or MutationRef"
+          )
+        is EmulatorInfo.Initialized -> {
+          if (emulatorInfo.compareAndSet(oldEmulatorInfo, newEmulatorInfo)) {
+            return
+          }
+        }
+      }
+    }
+  }
+
+  override fun close() {
+    while (true) {
+      val oldEmulatorInfo: EmulatorInfo.Frozen =
+        when (val oldEmulatorInfo = emulatorInfo.get()) {
+          is EmulatorInfo.Closed -> return
+          is EmulatorInfo.Frozen -> oldEmulatorInfo
+          is EmulatorInfo.Initialized -> EmulatorInfo.Frozen(oldEmulatorInfo)
+        }
+      val newEmulatorInfo = EmulatorInfo.Closed(oldEmulatorInfo)
+      if (emulatorInfo.compareAndSet(oldEmulatorInfo, newEmulatorInfo)) {
+        return
+      }
+    }
+  }
+
+  private fun freeze(): EmulatorInfo.Frozen {
+    while (true) {
+      when (val oldEmulatorInfo = emulatorInfo.get()) {
+        is EmulatorInfo.Frozen -> return oldEmulatorInfo
+        is EmulatorInfo.Closed -> return oldEmulatorInfo.frozenEmulatorInfo
+        is EmulatorInfo.Initialized -> {
+          val newEmulatorInfo = EmulatorInfo.Frozen(oldEmulatorInfo)
+          if (emulatorInfo.compareAndSet(oldEmulatorInfo, newEmulatorInfo)) {
+            return newEmulatorInfo
+          }
+        }
+      }
+    }
+  }
+
+  private sealed interface EmulatorInfo {
+    data class Initialized(val host: String, val sslEnabled: Boolean, val isEmulator: Boolean) :
+      EmulatorInfo
+    data class Frozen(val values: Initialized) : EmulatorInfo
+    class Closed(val frozenEmulatorInfo: Frozen) : EmulatorInfo
   }
 }

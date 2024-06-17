@@ -25,10 +25,9 @@ import com.google.firebase.dataconnect.ConnectorConfig
 import com.google.firebase.dataconnect.DataConnectSettings
 import com.google.firebase.dataconnect.FirebaseDataConnect
 import com.google.firebase.dataconnect.core.DataConnectAuth
+import com.google.firebase.dataconnect.core.DataConnectServerInfo
 import com.google.firebase.dataconnect.core.FirebaseDataConnectFactory
 import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl
-import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl.ConfiguredComponentsFactory
-import com.google.firebase.dataconnect.core.FirebaseDataConnectInternal.ConfiguredComponents
 import com.google.firebase.dataconnect.core.Logger
 import com.google.firebase.dataconnect.core.debug
 import com.google.firebase.dataconnect.core.warn
@@ -86,6 +85,8 @@ internal class DataConnectComponent(
       logger = Logger("DataConnectAuth").apply { debug { "Created by $parentLoggerId" } }
     )
 
+  val dataConnectServerInfo: DataConnectServerInfo = DataConnectServerInfo(dataConnectSettings)
+
   val dataConnect: FirebaseDataConnect =
     FirebaseDataConnectImpl(
       app = firebaseApp,
@@ -94,26 +95,10 @@ internal class DataConnectComponent(
       dataConnectAuth = dataConnectAuth,
       blockingExecutor = blockingExecutor,
       nonBlockingExecutor = nonBlockingExecutor,
-      configuredComponentsFactory = ConfiguredComponentsFactoryImpl(),
+      dataConnectServerInfo = dataConnectServerInfo,
       creator = creator,
       settings = dataConnectSettings,
       coroutineScope = coroutineScope,
       logger = parentLogger,
     )
-
-  private inner class ConfiguredComponentsFactoryImpl : ConfiguredComponentsFactory {
-    override fun newConfiguredComponents(host: String, sslEnabled: Boolean): ConfiguredComponents {
-      val childComponent =
-        DataConnectConfiguredComponent(
-          this@DataConnectComponent,
-          host,
-          sslEnabled,
-          parentLoggerId = parentLoggerId,
-        )
-      return object : ConfiguredComponents {
-        override val grpcClient = childComponent.dataConnectGrpcClient
-        override val queryManager = childComponent.queryManager
-      }
-    }
-  }
 }

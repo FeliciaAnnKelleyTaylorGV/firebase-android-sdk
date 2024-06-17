@@ -16,7 +16,8 @@
 
 package com.google.firebase.dataconnect.querymgr
 
-import com.google.firebase.dataconnect.*
+import com.google.firebase.dataconnect.DataConnectException
+import com.google.firebase.dataconnect.core.DataConnectGrpcClient
 import com.google.firebase.dataconnect.core.FirebaseDataConnectImpl
 import com.google.firebase.dataconnect.util.SequencedReference
 import com.google.firebase.dataconnect.util.newerOfThisAnd
@@ -25,14 +26,19 @@ import com.google.firebase.util.nextAlphanumericString
 import com.google.protobuf.Struct
 import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.*
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
 
 internal class QueryExecutor(
   val dataConnect: FirebaseDataConnectImpl,
   val operationName: String,
-  val variables: Struct
+  val variables: Struct,
+  private val grpcClient: DataConnectGrpcClient,
 ) {
   private val mutex = Mutex()
 
@@ -99,8 +105,7 @@ internal class QueryExecutor(
       try {
         val requestId = "qry" + Random.nextAlphanumericString(length = 10)
         val sequenceNumber = nextSequenceNumber()
-        dataConnect.lazyGrpcClient
-          .get()
+        grpcClient
           .runCatching {
             executeQuery(
               requestId = requestId,

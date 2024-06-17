@@ -32,6 +32,7 @@ internal class MutationRefImpl<Data, Variables>(
   variables: Variables,
   dataDeserializer: DeserializationStrategy<Data>,
   variablesSerializer: SerializationStrategy<Variables>,
+  private val grpcClient: DataConnectGrpcClient,
 ) :
   MutationRef<Data, Variables>,
   OperationRefImpl<Data, Variables>(
@@ -46,8 +47,7 @@ internal class MutationRefImpl<Data, Variables>(
 
   override suspend fun execute(): MutationResultImpl {
     val requestId = "mut" + Random.nextAlphanumericString(length = 10)
-    return dataConnect.lazyGrpcClient
-      .get()
+    return grpcClient
       .executeMutation(
         requestId = requestId,
         operationName = operationName,

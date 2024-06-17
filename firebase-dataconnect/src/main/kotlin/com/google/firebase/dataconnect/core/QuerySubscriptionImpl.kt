@@ -17,14 +17,17 @@
 package com.google.firebase.dataconnect.core
 
 import com.google.firebase.dataconnect.*
+import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import com.google.firebase.dataconnect.util.NullableReference
 import com.google.firebase.dataconnect.util.SequencedReference
 import java.util.Objects
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
-internal class QuerySubscriptionImpl<Data, Variables>(query: QueryRefImpl<Data, Variables>) :
-  QuerySubscriptionInternal<Data, Variables> {
+internal class QuerySubscriptionImpl<Data, Variables>(
+  query: QueryRefImpl<Data, Variables>,
+  private val queryManager: OldQueryManager,
+) : QuerySubscriptionInternal<Data, Variables> {
   private val _query = MutableStateFlow(query)
   override val query: QueryRefImpl<Data, Variables> by _query::value
 
@@ -51,7 +54,6 @@ internal class QuerySubscriptionImpl<Data, Variables>(query: QueryRefImpl<Data, 
         }
 
       collectJob = launch {
-        val queryManager = query.dataConnect.lazyQueryManager.get()
         queryManager.subscribe(query, executeQuery = shouldExecuteQuery) { sequencedResult ->
           val querySubscriptionResult = QuerySubscriptionResultImpl(query, sequencedResult)
           send(querySubscriptionResult)
@@ -63,7 +65,7 @@ internal class QuerySubscriptionImpl<Data, Variables>(query: QueryRefImpl<Data, 
 
   override suspend fun reload() {
     val query = query // save query to a local variable in case it changes.
-    val sequencedResult = query.dataConnect.lazyQueryManager.get().execute(query)
+    val sequencedResult = queryManager.execute(query)
     updateLastResult(QuerySubscriptionResultImpl(query, sequencedResult))
     sequencedResult.ref.getOrThrow()
   }

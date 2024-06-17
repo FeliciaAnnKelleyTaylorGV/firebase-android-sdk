@@ -17,6 +17,7 @@
 package com.google.firebase.dataconnect.core
 
 import com.google.firebase.dataconnect.*
+import com.google.firebase.dataconnect.oldquerymgr.OldQueryManager
 import java.util.Objects
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
@@ -27,6 +28,7 @@ internal class QueryRefImpl<Data, Variables>(
   variables: Variables,
   dataDeserializer: DeserializationStrategy<Data>,
   variablesSerializer: SerializationStrategy<Variables>,
+  private val queryManager: OldQueryManager,
 ) :
   QueryRef<Data, Variables>,
   OperationRefImpl<Data, Variables>(
@@ -36,8 +38,11 @@ internal class QueryRefImpl<Data, Variables>(
     dataDeserializer = dataDeserializer,
     variablesSerializer = variablesSerializer,
   ) {
-  override suspend fun execute(): QueryResultImpl =
-    dataConnect.lazyQueryManager.get().execute(this).let { QueryResultImpl(it.ref.getOrThrow()) }
+  override suspend fun execute(): QueryResultImpl {
+    val result = queryManager.execute(this)
+    val data = result.ref.getOrThrow()
+    return QueryResultImpl(data)
+  }
 
   override fun subscribe(): QuerySubscription<Data, Variables> = QuerySubscriptionImpl(this)
 
