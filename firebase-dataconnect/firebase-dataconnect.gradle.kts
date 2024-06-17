@@ -26,7 +26,6 @@ plugins {
   id("copy-google-services")
   alias(libs.plugins.dokka)
   alias(libs.plugins.kotlinx.serialization)
-  alias(libs.plugins.ksp)
 }
 
 firebaseLibrary {
@@ -69,11 +68,6 @@ android {
       excludes.add("META-INF/LICENSE.md")
       excludes.add("META-INF/LICENSE-notice.md")
     }
-  }
-
-  ksp {
-    arg("me.tatarka.inject.generateCompanionExtensions", "true")
-    arg("me.tatarka.inject.enableJavaxAnnotations", "true")
   }
 }
 
@@ -138,8 +132,6 @@ dependencies {
   implementation(libs.grpc.stub)
   implementation(libs.protobuf.java.lite)
   implementation(libs.protobuf.kotlin.lite)
-  ksp(libs.kotlin.inject.compiler.ksp)
-  implementation(libs.kotlin.inject.runtime)
 
   testCompileOnly(libs.protobuf.java)
   testImplementation(project(":firebase-dataconnect:testutil"))

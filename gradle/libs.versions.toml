@@ -10,7 +10,6 @@ grpc = "1.57.2"
 grpcKotlin = "1.4.0"
 javalite = "3.24.0"
 kotlin-stdlib = "1.8.22"
-ksp = "1.8.22-1.0.11"
 serialization-plugin = "1.8.22"
 protoc = "3.24.0"
 truth = "1.4.2"
@@ -22,7 +21,6 @@ serialization = "1.5.0"
 androidx-test-core="1.5.0"
 androidx-test-junit="1.1.5"
 androidx-test-truth = "1.5.0"
-kotlin-inject = "0.6.3"
 
 [libraries]
 android-lint = { module = "com.android.tools.lint:lint", version.ref = "android-lint" }
@@ -62,8 +60,6 @@ protoc = { module = "com.google.protobuf:protoc", version.ref = "protoc" }
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "javalite" }
 protobuf-java-lite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "javalite" }
 protobuf-kotlin-lite = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "javalite" }
-kotlin-inject-compiler-ksp = { module = "me.tatarka.inject:kotlin-inject-compiler-ksp", version.ref = "kotlin-inject" }
-kotlin-inject-runtime = { module = "me.tatarka.inject:kotlin-inject-runtime", version.ref = "kotlin-inject" }
 
 # Test libs
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test-core" }
@@ -93,4 +89,3 @@ playservices = ["playservices-base", "playservices-basement", "playservices-task
 [plugins]
 dokka = { id = "org.jetbrains.dokka", version = "1.9.10" }
 kotlinx-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "serialization-plugin" }
-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
