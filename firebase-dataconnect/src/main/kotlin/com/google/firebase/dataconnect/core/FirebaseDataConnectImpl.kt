@@ -149,6 +149,7 @@ internal class FirebaseDataConnectImpl(
 
       if (backendInfo.isEmulator) {
         logEmulatorVersion(dataConnectGrpcRPCs)
+        streamEmulatorErrors(dataConnectGrpcRPCs)
       }
 
       dataConnectGrpcRPCs
@@ -215,9 +216,10 @@ internal class FirebaseDataConnectImpl(
     }
   }
 
-  private suspend fun logEmulatorVersion(dataConnectGrpcRPCs: DataConnectGrpcRPCs) {
+  private fun logEmulatorVersion(dataConnectGrpcRPCs: DataConnectGrpcRPCs) {
     val requestId = "gei" + Random.nextAlphanumericString(length = 6)
     logger.debug { "[rid=$requestId] Getting Data Connect Emulator information" }
+
     val job =
       coroutineScope.async {
         val emulatorInfo = dataConnectGrpcRPCs.getEmulatorInfo(requestId)
@@ -235,9 +237,31 @@ internal class FirebaseDataConnectImpl(
           }
         }
       }
+
     job.invokeOnCompletion { exception ->
-      logger.debug {
-        "[rid=$requestId] Getting Data Connect Emulator information FAILED: $exception"
+      if (exception !== null) {
+        logger.debug {
+          "[rid=$requestId] Getting Data Connect Emulator information FAILED: $exception"
+        }
+      }
+    }
+  }
+
+  private fun streamEmulatorErrors(dataConnectGrpcRPCs: DataConnectGrpcRPCs) {
+    val requestId = "see" + Random.nextAlphanumericString(length = 6)
+    logger.debug { "[rid=$requestId] Streaming Data Connect Emulator errors" }
+
+    val job =
+      coroutineScope.async {
+        // Do not log anything for each entry collected, as DataConnectGrpcRPCs already logs each
+        // received message and there is nothing for this method to add to it.
+        dataConnectGrpcRPCs.streamEmulatorIssues(requestId, config.serviceId).collect()
+      }
+    job.invokeOnCompletion { exception ->
+      if (!(exception === null || exception is CancellationException)) {
+        logger.debug {
+          "[rid=$requestId] Streaming Data Connect Emulator errors FAILED: $exception"
+        }
       }
     }
   }
