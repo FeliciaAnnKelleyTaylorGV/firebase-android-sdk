@@ -9,7 +9,7 @@ dagger = "2.43.2"
 grpc = "1.57.2"
 grpcKotlin = "1.4.0"
 javalite = "3.24.0"
-kotlin-stdlib = "1.8.22"
+kotlin = "1.8.22"
 serialization-plugin = "1.8.22"
 protoc = "3.24.0"
 truth = "1.4.2"
@@ -46,7 +46,7 @@ grpc-protoc-gen-kotlin = { module = "io.grpc:protoc-gen-grpc-kotlin", version.re
 grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
 javax-annotation-jsr250 = { module = "javax.annotation:jsr250-api", version = "1.0" }
 javax-inject = { module = "javax.inject:javax.inject", version = "1" }
-kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin-stdlib" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 kotlin-coroutines-tasks = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "serialization" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }

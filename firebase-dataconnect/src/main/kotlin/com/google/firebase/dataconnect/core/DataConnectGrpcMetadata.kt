@@ -16,6 +16,8 @@
 
 package com.google.firebase.dataconnect.core
 
+import android.os.Build
+import com.google.firebase.dataconnect.BuildConfig
 import com.google.firebase.dataconnect.util.buildStructProto
 import com.google.protobuf.Struct
 import io.grpc.Metadata
@@ -27,7 +29,6 @@ internal class DataConnectGrpcMetadata(
   val androidVersion: Int,
   val dataConnectSdkVersion: String,
   val grpcVersion: String,
-  val instanceId: String,
 ) {
   @Suppress("SpellCheckingInspection")
   private val googRequestParamsHeaderValue = "location=${connectorLocation}&frontend=data"
@@ -82,5 +83,18 @@ internal class DataConnectGrpcMetadata(
     @Suppress("SpellCheckingInspection")
     private val googApiClientHeader: Metadata.Key<String> =
       Metadata.Key.of("x-goog-api-client", Metadata.ASCII_STRING_MARSHALLER)
+
+    fun forSystemVersions(
+      dataConnectAuth: DataConnectAuth,
+      connectorLocation: String,
+    ): DataConnectGrpcMetadata =
+      DataConnectGrpcMetadata(
+        dataConnectAuth = dataConnectAuth,
+        connectorLocation = connectorLocation,
+        kotlinVersion = "${KotlinVersion.CURRENT}",
+        androidVersion = Build.VERSION.SDK_INT,
+        dataConnectSdkVersion = BuildConfig.VERSION_NAME,
+        grpcVersion = "", // no way to get the grpc version at runtime
+      )
   }
 }

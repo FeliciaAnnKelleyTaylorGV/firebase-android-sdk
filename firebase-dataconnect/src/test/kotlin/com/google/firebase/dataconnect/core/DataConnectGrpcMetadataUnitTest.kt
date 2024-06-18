@@ -15,6 +15,8 @@
  */
 package com.google.firebase.dataconnect.core
 
+import android.os.Build
+import com.google.firebase.dataconnect.BuildConfig
 import com.google.firebase.dataconnect.ConnectorConfig
 import com.google.firebase.dataconnect.testutil.accessToken
 import com.google.firebase.dataconnect.testutil.connectorConfig
@@ -24,6 +26,7 @@ import io.kotest.assertions.asClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.property.Arb
 import io.kotest.property.RandomSource
 import io.kotest.property.arbitrary.next
@@ -107,6 +110,29 @@ class DataConnectGrpcMetadataUnitTest {
     }
   }
 
+  @Test
+  fun `forSystemVersions() should return correct values`() = runTest {
+    val key = "4vjtde6zyv"
+    val testValues = DataConnectGrpcMetadataTestValues.fromKey(key)
+    val dataConnectAuth = testValues.dataConnectAuth
+    val connectorLocation = testValues.connectorConfig.location
+
+    val metadata =
+      DataConnectGrpcMetadata.forSystemVersions(
+        dataConnectAuth = dataConnectAuth,
+        connectorLocation = connectorLocation,
+      )
+
+    metadata.asClue {
+      it.dataConnectAuth shouldBeSameInstanceAs dataConnectAuth
+      it.connectorLocation shouldBeSameInstanceAs connectorLocation
+      it.kotlinVersion shouldBe "${KotlinVersion.CURRENT}"
+      it.androidVersion shouldBe Build.VERSION.SDK_INT
+      it.dataConnectSdkVersion shouldBe BuildConfig.VERSION_NAME
+      it.grpcVersion shouldBe ""
+    }
+  }
+
   private data class DataConnectGrpcMetadataTestValues(
     val dataConnectAuth: DataConnectAuth,
     val requestIdSlot: CapturingSlot<String>,
@@ -121,7 +147,7 @@ class DataConnectGrpcMetadataUnitTest {
     ): DataConnectGrpcMetadata =
       DataConnectGrpcMetadata(
         dataConnectAuth = dataConnectAuth,
-        connectorConfig = connectorConfig,
+        connectorLocation = connectorConfig.location,
         kotlinVersion = kotlinVersion,
         androidVersion = androidVersion,
         dataConnectSdkVersion = dataConnectSdkVersion,

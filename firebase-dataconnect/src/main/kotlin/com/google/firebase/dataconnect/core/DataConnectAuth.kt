@@ -30,10 +30,10 @@ import kotlinx.coroutines.tasks.await
 internal class DataConnectAuth(
   deferredAuthProvider: com.google.firebase.inject.Deferred<InternalAuthProvider>,
   blockingExecutor: Executor,
-  private val logger: Logger,
+  parentLogger: Logger,
 ) {
-  val instanceId: String
-    get() = logger.nameWithId
+  private val logger =
+    Logger("DataConnectAuth").apply { debug { "Created by ${parentLogger.nameWithId}" } }
 
   private val idTokenListener = IdTokenListener { runBlocking { onIdTokenChanged(it) } }
 
