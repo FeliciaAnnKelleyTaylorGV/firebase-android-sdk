@@ -148,19 +148,7 @@ internal class FirebaseDataConnectImpl(
         )
 
       if (backendInfo.isEmulator) {
-        val requestId = "gei" + Random.nextAlphanumericString(length = 6)
-        val result = dataConnectGrpcRPCs.runCatching { getEmulatorInfo(requestId) }
-        result.onSuccess { emulatorInfo ->
-          logger.debug { "Data Connect Emulator version: ${emulatorInfo.version}" }
-          logger.debug { "Data Connect Emulator services (${emulatorInfo.servicesCount}): " }
-          emulatorInfo.servicesList.forEachIndexed { index, serviceInfo ->
-            logger.debug {
-              " service #${index+1}:" +
-                " serviceId=${serviceInfo.serviceId}" +
-                " connectionString=${serviceInfo.connectionString}"
-            }
-          }
-        }
+        logEmulatorVersion(dataConnectGrpcRPCs)
       }
 
       dataConnectGrpcRPCs
@@ -224,6 +212,33 @@ internal class FirebaseDataConnectImpl(
         )
       }
       emulatorSettings = EmulatedServiceSettings(host = host, port = port)
+    }
+  }
+
+  private suspend fun logEmulatorVersion(dataConnectGrpcRPCs: DataConnectGrpcRPCs) {
+    val requestId = "gei" + Random.nextAlphanumericString(length = 6)
+    logger.debug { "[rid=$requestId] Getting Data Connect Emulator information" }
+    val job =
+      coroutineScope.async {
+        val emulatorInfo = dataConnectGrpcRPCs.getEmulatorInfo(requestId)
+        logger.debug { "[rid=$requestId] Data Connect Emulator version: ${emulatorInfo.version}" }
+
+        logger.debug {
+          "[rid=$requestId] Data Connect Emulator services" +
+            " (count=${emulatorInfo.servicesCount}):"
+        }
+        emulatorInfo.servicesList.forEachIndexed { index, serviceInfo ->
+          logger.debug {
+            "[rid=$requestId]  service #${index+1}:" +
+              " serviceId=${serviceInfo.serviceId}" +
+              " connectionString=${serviceInfo.connectionString}"
+          }
+        }
+      }
+    job.invokeOnCompletion { exception ->
+      logger.debug {
+        "[rid=$requestId] Getting Data Connect Emulator information FAILED: $exception"
+      }
     }
   }
 
