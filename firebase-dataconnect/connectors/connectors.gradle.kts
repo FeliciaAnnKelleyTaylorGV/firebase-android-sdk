@@ -15,6 +15,7 @@
  */
 
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.util.Locale
 
 plugins {
   id("com.android.library")
@@ -99,5 +100,22 @@ tasks.withType<KotlinCompile>().all {
     if (!kotlinOptions.freeCompilerArgs.contains("-Xexplicit-api=strict")) {
       kotlinOptions.freeCompilerArgs += "-Xexplicit-api=strict"
     }
+  }
+}
+
+androidComponents.onVariants { variant ->
+  val variantNameTitleCase = variant.name.replaceFirstChar { it.titlecase(Locale.US) }
+  val generateCodeTask = project.tasks.register<DataConnectCodegenTask>("generate${variantNameTitleCase}DataConnectSources")
+
+  variant.sources.java?.addGeneratedSourceDirectory(generateCodeTask, DataConnectCodegenTask::outputDirectory)
+}
+
+abstract class DataConnectCodegenTask : DefaultTask() {
+  @get:OutputFiles
+  abstract val outputDirectory: DirectoryProperty
+
+  @TaskAction
+  fun generateCode() {
+    println("zzyzx Generating code into ${outputDirectory.get()}")
   }
 }
