@@ -16,6 +16,7 @@
 
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.util.Locale
+import kotlin.io.path.relativeTo
 
 plugins {
   id("com.android.library")
@@ -140,9 +141,11 @@ abstract class DataConnectCodegenTask : DefaultTask() {
   fun generateCode() {
     val outputDirectory = outputDirectory.asFile.get()
     val intermediatesDirectory = intermediatesDirectory.asFile.get()
+    val inputDirectories = inputDirectories.get().map { it.map { it.asFile } }
 
     deleteDirectory(outputDirectory)
     deleteDirectory(intermediatesDirectory)
+    mergeInputDirectories(inputDirectories, intermediatesDirectory)
   }
 
   private fun deleteDirectory(dir: File) {
@@ -155,5 +158,65 @@ abstract class DataConnectCodegenTask : DefaultTask() {
     }
   }
 
+  private fun mergeInputDirectories(inputDirectories: List<List<File>>, outputDirectory: File) {
+    data class SrcFileInfo(val file: File, val relativePath: String)
+    val srcFiles = mutableListOf<SrcFileInfo>()
+
+    for (curInputDirectories in inputDirectories.reversed()) {
+      val destFileBySrcFiles = mutableMapOf<String, MutableSet<String>>()
+      for (curInputDirectory in curInputDirectories) {
+        logger.info("Enumerating input files in directory: {}", curInputDirectory)
+        val dirWalker = curInputDirectory.walkTopDown().onFail { file, exception ->
+          throw ReadInputDirectoryFailedException(file, exception)
+        }
+        for (srcFile in dirWalker) {
+          if (!srcFile.isFile) {
+            continue
+          }
+          logger.debug("Found input file: {}", srcFile)
+          val relativePath = srcFile.toPath().relativeTo(curInputDirectory.toPath()).toString()
+          destFileBySrcFiles.getOrPut(relativePath) { mutableSetOf()}.add(srcFile.path)
+          srcFiles.add(SrcFileInfo(file=srcFile, relativePath = relativePath))
+        }
+      }
+
+      val srcFileConflicts = destFileBySrcFiles.filter { it.value.size > 1 }.map { SrcFileConflict(destPath=it.key, srcPaths = it.value.toList()) }
+      if (srcFileConflicts.isNotEmpty()) {
+        throw SourceFileConflictsException(srcFileConflicts)
+      }
+    }
+
+    for (srcFile in srcFiles) {
+      val destFile = outputDirectory.toPath().resolve(srcFile.relativePath).toFile()
+      logger.debug("Copying {} to {}", srcFile.file, destFile)
+    }
+  }
+
   private class DeleteDirectoryFailedException(dir: File) : GradleException("deleting directory failed: $dir")
+
+  private data class SrcFileConflict(val destPath: String, val srcPaths: List<String>)
+
+  private class SourceFileConflictsException(conflicts: List<SrcFileConflict>) : GradleException(toMessage(conflicts)) {
+    private companion object {
+      fun toMessage(conflict: SrcFileConflict): String {
+        return "${conflict.srcPaths.sorted().joinToString(" and ")} " +
+            "map to the same output file: ${conflict.destPath}"
+      }
+
+      fun toMessage(conflicts: List<SrcFileConflict>): String {
+        if (conflicts.size == 1) {
+          return "Input file conflict: ${toMessage(conflicts.single())}"
+        }
+
+        val sb = StringBuilder("${conflicts.size} input file conflicts:")
+        conflicts.sortedBy { it.destPath }.forEachIndexed { index, conflict ->
+          sb.append(" [${index+1}] ${toMessage(conflict)}")
+        }
+        return sb.toString()
+      }
+    }
+  }
+
+  private class ReadInputDirectoryFailedException(file: File, cause: Throwable) :
+    GradleException("reading input file/directory failed: $file", cause)
 }
