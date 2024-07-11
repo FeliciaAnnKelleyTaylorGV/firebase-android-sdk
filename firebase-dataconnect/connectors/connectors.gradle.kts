@@ -17,6 +17,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.util.Locale
 import kotlin.io.path.relativeTo
+import io.javalin.Javalin
 
 plugins {
   id("com.android.library")
@@ -118,7 +119,7 @@ androidComponents.onVariants { variant ->
   val generateCodeTask = project.tasks.register<DataConnectCodegenTask>("generate${variantNameTitleCase}DataConnectSources") {
     inputDirectories.set(inputDirectoriesProvider)
     intermediatesDirectory.set(project.layout.buildDirectory.dir("intermediates/generateDataConnectSources/${variant.name}"))
-    dataConnectCli.set(File("/usr/local/google/home/dconeybe/work/android/dataconnect/firebase-dataconnect/emulator/cli"))
+    dataConnectCli.set(File("/google/src/cloud/dconeybe/codegen/google3/blaze-bin/third_party/firebase/dataconnect/emulator/cli/cli"))
   }
 
   variant.sources.java!!.addGeneratedSourceDirectory(generateCodeTask, DataConnectCodegenTask::outputDirectory)
@@ -146,6 +147,7 @@ abstract class DataConnectCodegenTask : DefaultTask() {
     deleteDirectory(outputDirectory)
     deleteDirectory(intermediatesDirectory)
     mergeInputDirectories(inputDirectories, intermediatesDirectory)
+    runCodgen(intermediatesDirectory, outputDirectory)
   }
 
   private fun deleteDirectory(dir: File) {
@@ -189,8 +191,50 @@ abstract class DataConnectCodegenTask : DefaultTask() {
     for (srcFile in srcFiles) {
       val destFile = outputDirectory.toPath().resolve(srcFile.relativePath).toFile()
       logger.debug("Copying {} to {}", srcFile.file, destFile)
+      srcFile.file.copyTo(destFile, overwrite=true)
     }
   }
+
+  private fun runCodgen(intermediatesDirectory: File, outputDirectory: File) {
+    val httpServer = Javalin.create { config ->
+      config.http.maxRequestSize = 1_000_000
+      config.jetty.threadPool
+      config.showJavalinBanner = false
+    }
+    httpServer.start("127.0.0.1", 0)
+    try {
+      val port = httpServer.port()
+      logger.debug("Pre-generate hook server listening on port $port")
+      httpServer.get("/preGenerate") { ctx ->
+        logger.info("Pre-generate hook server got request on {}: {}", ctx.path(), ctx.body())
+        ctx.result("{skipAll: \"helloasdf\"}")
+      }
+
+      val codegenArgs = listOf(
+        this.dataConnectCli.get().asFile.path,
+        "generate",
+        "-pre_generate_hook_url=http://127.0.0.1:$port",
+      )
+      logger.info("Running command in directory $intermediatesDirectory: ${codegenArgs.joinToString(" ")}")
+      val process = ProcessBuilder().run {
+        command(codegenArgs)
+        directory(intermediatesDirectory)
+        inheritIO()
+        start()
+      }
+      val exitCode = process.waitFor()
+      if (exitCode != 0) {
+        throw CodegenFailedException("Data Connect code generation failed:"
+            + " command completed with non-zero exit code $exitCode: "
+            + codegenArgs.joinToString(" ")
+        )
+      }
+    } finally {
+      httpServer.stop()
+    }
+  }
+
+  private class CodegenFailedException(message: String) : GradleException(message)
 
   private class DeleteDirectoryFailedException(dir: File) : GradleException("deleting directory failed: $dir")
 
