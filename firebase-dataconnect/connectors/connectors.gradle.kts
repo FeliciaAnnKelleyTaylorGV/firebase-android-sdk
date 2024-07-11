@@ -105,17 +105,55 @@ tasks.withType<KotlinCompile>().all {
 
 androidComponents.onVariants { variant ->
   val variantNameTitleCase = variant.name.replaceFirstChar { it.titlecase(Locale.US) }
-  val generateCodeTask = project.tasks.register<DataConnectCodegenTask>("generate${variantNameTitleCase}DataConnectSources")
 
-  variant.sources.java?.addGeneratedSourceDirectory(generateCodeTask, DataConnectCodegenTask::outputDirectory)
+  val inputDirectoriesProvider = variant.sources.assets!!.all.map { directoryCollections ->
+    directoryCollections.map { directories ->
+      directories.map { directory ->
+        directory.dir("../dataconnect")
+      }
+    }
+  }
+
+  val generateCodeTask = project.tasks.register<DataConnectCodegenTask>("generate${variantNameTitleCase}DataConnectSources") {
+    inputDirectories.set(inputDirectoriesProvider)
+    intermediatesDirectory.set(project.layout.buildDirectory.dir("intermediates/generateDataConnectSources/${variant.name}"))
+    dataConnectCli.set(File("/usr/local/google/home/dconeybe/work/android/dataconnect/firebase-dataconnect/emulator/cli"))
+  }
+
+  variant.sources.java!!.addGeneratedSourceDirectory(generateCodeTask, DataConnectCodegenTask::outputDirectory)
 }
 
 abstract class DataConnectCodegenTask : DefaultTask() {
-  @get:OutputFiles
+  @get:OutputDirectory
   abstract val outputDirectory: DirectoryProperty
+
+  @get:OutputDirectory
+  abstract val intermediatesDirectory: DirectoryProperty
+
+  @get:InputFiles
+  abstract val inputDirectories: ListProperty<Collection<Directory>>
+
+  @get:InputFile
+  abstract val dataConnectCli: RegularFileProperty
 
   @TaskAction
   fun generateCode() {
-    println("zzyzx Generating code into ${outputDirectory.get()}")
+    val outputDirectory = outputDirectory.asFile.get()
+    val intermediatesDirectory = intermediatesDirectory.asFile.get()
+
+    deleteDirectory(outputDirectory)
+    deleteDirectory(intermediatesDirectory)
   }
+
+  private fun deleteDirectory(dir: File) {
+    if (dir.exists()) {
+      logger.info("Deleting directory: {}", dir)
+      val deleteSucceeded = dir.deleteRecursively()
+      if (! deleteSucceeded) {
+        throw DeleteDirectoryFailedException(dir)
+      }
+    }
+  }
+
+  private class DeleteDirectoryFailedException(dir: File) : GradleException("deleting directory failed: $dir")
 }
