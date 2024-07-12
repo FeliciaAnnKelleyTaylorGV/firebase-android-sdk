@@ -17,7 +17,6 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.util.Locale
 import kotlin.io.path.relativeTo
-import io.javalin.Javalin
 
 plugins {
   id("com.android.library")
@@ -196,41 +195,33 @@ abstract class DataConnectCodegenTask : DefaultTask() {
   }
 
   private fun runCodgen(intermediatesDirectory: File, outputDirectory: File) {
-    val httpServer = Javalin.create { config ->
-      config.http.maxRequestSize = 1_000_000
-      config.jetty.threadPool
-      config.showJavalinBanner = false
+    val codegenArgs = buildList {
+      add(dataConnectCli.get().asFile.path)
+      if (logger.isInfoEnabled) {
+        add("-logtostderr")
+      }
+      if (logger.isDebugEnabled) {
+        add("-v")
+        add("2")
+      }
+      add("generate")
+      add("-config_dir=$intermediatesDirectory")
+      add("-target=kotlin")
+      add("-output_dir_override=${outputDirectory.path}")
     }
-    httpServer.start("127.0.0.1", 0)
-    try {
-      val port = httpServer.port()
-      logger.debug("Pre-generate hook server listening on port $port")
-      httpServer.get("/preGenerate") { ctx ->
-        logger.info("Pre-generate hook server got request on {}: {}", ctx.path(), ctx.body())
-        ctx.result("{skipAll: \"helloasdf\"}")
-      }
-
-      val codegenArgs = listOf(
-        this.dataConnectCli.get().asFile.path,
-        "generate",
-        "-pre_generate_hook_url=http://127.0.0.1:$port",
+    val codegenArgsStr = codegenArgs.joinToString(" ")
+    logger.info("Running command: {}", codegenArgsStr)
+    val process = ProcessBuilder().apply {
+      command(codegenArgs)
+      directory(intermediatesDirectory)
+      inheritIO()
+      redirectErrorStream(true)
+    }.start()
+    val exitCode = process.waitFor()
+    if (exitCode != 0) {
+      throw CodegenFailedException("Data Connect code generation failed:"
+          + " command completed with non-zero exit code $exitCode: $codegenArgsStr"
       )
-      logger.info("Running command in directory $intermediatesDirectory: ${codegenArgs.joinToString(" ")}")
-      val process = ProcessBuilder().run {
-        command(codegenArgs)
-        directory(intermediatesDirectory)
-        inheritIO()
-        start()
-      }
-      val exitCode = process.waitFor()
-      if (exitCode != 0) {
-        throw CodegenFailedException("Data Connect code generation failed:"
-            + " command completed with non-zero exit code $exitCode: "
-            + codegenArgs.joinToString(" ")
-        )
-      }
-    } finally {
-      httpServer.stop()
     }
   }
 
