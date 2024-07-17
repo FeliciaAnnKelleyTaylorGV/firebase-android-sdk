@@ -272,7 +272,7 @@ internal class UnarySnapshotTests {
         val response = model.generateContent("prompt")
         val callPart = (response.candidates.first().content.parts.first() as FunctionCallPart)
 
-        callPart.args["season"] shouldBe null
+        callPart.args!!["seasons"] shouldBe null
       }
     }
 
@@ -289,7 +289,19 @@ internal class UnarySnapshotTests {
             it.parts.first().shouldBeInstanceOf<FunctionCallPart>()
           }
 
-        callPart.args["current"] shouldBe "true"
+        callPart.args!!["current"] shouldBe "true"
+      }
+    }
+
+  @Test
+  fun `function call has no arguments field`() =
+    goldenUnaryFile("success-function-call-empty-arguments.json") {
+      withTimeout(testTimeout) {
+        val response = model.generateContent("prompt")
+        val callPart = response.functionCalls.first()
+
+        callPart.name shouldBe "current_time"
+        callPart.args shouldBe null
       }
     }
 }
